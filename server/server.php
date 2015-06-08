@@ -62,9 +62,6 @@ class GameServer {
                 break;
             default: $ws->push($frame->fd, json_encode(array('r' => 1, 'msg' => 'unknown cmd')));
         }
-        sleep(5);
-        $ws->task('wid:'.$ws->worker_id .'|'. 'test');
-        //$ws->push($frame->fd, "server: {$frame->data}");
     }
 
     public function onClose($ws, $fd) {
