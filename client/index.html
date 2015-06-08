@@ -133,7 +133,7 @@ and open the template in the editor.
                 ws.onopen = function ()
                 {
                     console.log("open");
-                    ws.send("hello");
+                    //ws.send("hello");
                 };
                 ws.onmessage = function (evt)
                 {
@@ -162,14 +162,14 @@ and open the template in the editor.
                 };
 
                 function add_chat(data) {
-                     var name = data.name;
-                     var chat = data.chat;
-                     if(name == self_info.name) {
-                         color = 'yellow';
-                     }else{
-                         color = 'blue';
-                     }
-                     $("#chat").append('<li><span class="'+color+'">'+name+'</span> : <span class="green">'+chat+'</span></li>');
+                    var name = data.name;
+                    var chat = data.chat;
+                    if (name == self_info.name) {
+                        color = 'yellow';
+                    } else {
+                        color = 'blue';
+                    }
+                    $("#chat").append('<li><span class="' + color + '">' + name + '</span> : <span class="green">' + chat + '</span></li>');
                 }
 
                 function add_msg() {
@@ -196,8 +196,8 @@ and open the template in the editor.
                     var text_hp = enemy.hp + '/' + enemy.max_hp;
                     var text_mp = enemy.mp + '/' + enemy.max_mp;
                     var text_lose = enemy.win + '/' + enemy.lose;
-                    $("#enemy_name").text(html_encode(enemy.name);
-                            $("#enemy_hp").text(text_hp);
+                    $("#enemy_name").text(html_encode(enemy.name));
+                    $("#enemy_hp").text(text_hp);
                     $("#enemy_mp").text(text_mp);
                     $("#enemy_vs").text(text_lose);
                 }

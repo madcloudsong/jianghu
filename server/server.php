@@ -40,7 +40,7 @@ class GameServer {
             case cmd_msg:break;
             default: $ws->push($frame->fd, json_encode(array('r' => 1, 'msg' => 'unknown cmd')));
         }
-        $ws->push($frame->fd, "server: {$frame->data}");
+        //$ws->push($frame->fd, "server: {$frame->data}");
     }
 
     public function onClose($ws, $fd) {
