@@ -33,11 +33,11 @@ class GameServer {
         echo "Received message: {$frame->data}\n";
         $data = json_decode($frame->data, true);
         switch ($data['cmd']) {
-            case cmd_name:$this->set_name($frame->fd, $data);
+            case self::cmd_name:$this->set_name($frame->fd, $data);
                 break;
-            case cmd_chat:$this->chat($frame->fd, $data);
+            case self::cmd_chat:$this->chat($frame->fd, $data);
                 break;
-            case cmd_msg:break;
+            case self::cmd_msg:break;
             default: $ws->push($frame->fd, json_encode(array('r' => 1, 'msg' => 'unknown cmd')));
         }
         //$ws->push($frame->fd, "server: {$frame->data}");
@@ -52,7 +52,7 @@ class GameServer {
         $result = array(
             'r' => 0,
             'msg' => '',
-            'cmd' => cmd_name,
+            'cmd' => self::cmd_name,
             'name' => $name,
         );
         $this->ws->push($fd, json_encode($result));
@@ -63,7 +63,7 @@ class GameServer {
         $result = array(
             'r' => 0,
             'msg' => '',
-            'cmd' => cmd_chat,
+            'cmd' => self::cmd_chat,
             'chat' => $chat,
         );
         $this->ws->push($fd, json_encode($result));
