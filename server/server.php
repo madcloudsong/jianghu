@@ -54,7 +54,7 @@ class GameServer {
     }
 
     public function onMessage($ws, $frame) {
-        echo "Received message: {$frame->data}\n";
+        echo 'wid: '.$ws->worker_id." Received message: {$frame->data}\n";
         $data = json_decode($frame->data, true);
         switch ($data['cmd']) {
             case self::cmd_name:$this->set_name($frame->fd, $data);
@@ -86,7 +86,7 @@ class GameServer {
 
     public function onFinish($ws, $task_id, $data){
         echo 'wid : '. $ws->worker_id . $task_id."|".var_export($data,true) . "\n";
-        $this->redis->subscribe(array(self::SUB_PUB_KEY), array($this, 'onSub'));
+        $this->sub();
     }
 
     public function sub() {
