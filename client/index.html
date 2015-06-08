@@ -12,24 +12,123 @@ and open the template in the editor.
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { font: 13px Helvetica, Arial; width: 100%;}
-            form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
-            form input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
-            form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
-            #messages { list-style-type: none; margin: 0; padding: 0; }
-            #messages li { padding: 5px 10px; }
-            #messages li:nth-child(odd) { background: #eee; }
+            .red{color:red;}
+            .blue{color:blue;}
+            .pink{color:pink;}
+            .yellow{color:yellow}
+            .black{color:black;}
+            .white{color:white;}
+            .green{color:green;}
+            .gray{color:gray;}
+
+            .btn{
+                text-decoration: none;color:white;text-align: center;vertical-align: middle;display: inline-block;-moz-user-select: none; 
+                -webkit-user-select: none; user-select: none;}
+            .btn:active{
+                opacity: 0.8;
+            }
+            .btn-pve, .btn-pvp{
+                padding: 20px 20px;
+                background-color: red;
+            }
+            .btn-send{
+                padding: 10px 20px;
+                background-color: red;
+            }
+            .btn-attack, .btn-defence, .btn-rest, .btn-reborn{
+                padding: 20px 5px;
+                margin: 0px;
+                width: 24%;
+                background-color: red;
+            }
+
+            #panel_msg { list-style-type: none; margin: 0; padding: 0; }
+            #panel_msg li { padding: 5px 10px; }
+            #panel_msg li:nth-child(odd) { background: #eee; }
+
+            #panel_chat li{padding: 5px 10px;}
+            #panel_chat li{border-bottom: solid rgb(255, 0 , 0 ) 1px;}
         </style>
     </head>
     <body>
-        <div id="transportName"></div>
-        <textarea id="msg" rows="10" cols="50"></textarea><br />
-        <input id="submitButton" type="button" value="submit!">
-        <div id="messageArea">
-            <ul></ul>
+        <div id="panel_enemy">
+            <div id="panel_enemy_info">
+                <p><span>Name:</span><span id="enemy_name">Daxia</span></p>
+                <p><span>Life:</span><span id="enemy_hp">00</span></p>
+                <p><span>Mp:</span><span id="enemy_mp">00</span></p>
+                <p><span>VS:</span><span id="enemy_vs">5/2</span></p>
+                <div style="position: absolute;right:0px;top:0px;">
+                    <a href="javascript:;" class="btn btn-pvp">pvp</a>
+                    <a href="javascript:;" class="btn btn-pve">pve</a>
+                </div>
+            </div>
+
+        </div>
+        <div id="panel_msg" style="width:100%; height:200px;">
+            <p>System Msg</p>
+            <ul id="msg">
+                <li>fdssfd</li>
+                <li>fdssfd</li>
+            </ul>
+        </div>
+
+        <div id="panel_self">
+            <p><span>Name:</span><span id="self_name">Daxia</span></p>
+            <p><span>Life:</span><span id="self_hp">00</span></p>
+            <p><span>Mp:</span><span id="self_mp">00</span></p>
+            <p><span>VS:</span><span id="self_vs">5/2</span></p>
+        </div>
+        <div id="panel_op">
+            <a href="javascript:;" class="btn btn-attack">Attack</a>
+            <a href="javascript:;" class="btn btn-defence">Defence</a>
+            <a href="javascript:;" class="btn btn-rest">Rest</a>
+            <a href="javascript:;" class="btn btn-reborn">Reborn</a>
+        </div>
+        <div id="panel_chat" style="margin-top: 20px;">
+            <input type="text" id="chat_input" style="height:30px;width:50%;"/>
+            <a href="javascript:;" class="btn btn-send">Send</a>
+            <p>Chat Msg</p>
+            <ul id="chat_history" style="width:100%; height:200px;">
+                <li>fdssfd</li>
+                <li>fdssfd</li>
+            </ul>
+
         </div>
         <script type="text/javascript" src="http://code.jquery.com/jquery-1.11.1.js"></script>
         <script>
             $(function () {
+                var cmd_name = 1,
+                        cmd_chat = 2,
+                        cmd_attack = 3,
+                        cmd_defence = 4,
+                        cmd_rest = 5,
+                        cmd_reborn = 6,
+                        cmd_msg = 7,
+                        cmd_list = 8;
+                var self_info = {
+                    hp: 0,
+                    max_hp: 0,
+                    mp: 0,
+                    max_mp: 0,
+                    win: 0,
+                    lose: 0
+                };
+
+                function html_encode(str)
+                {
+                    var s = "";
+                    if (str.length == 0)
+                        return "";
+                    s = str.replace(/&/g, "&gt;");
+                    s = s.replace(/</g, "&lt;");
+                    s = s.replace(/>/g, "&gt;");
+                    s = s.replace(/ /g, "&nbsp;");
+                    s = s.replace(/\'/g, "&#39;");
+                    s = s.replace(/\"/g, "&quot;");
+                    s = s.replace(/\n/g, "<br>");
+                    return s;
+                }
+
                 var ws = new WebSocket("ws://itsong.net:9502");
                 ws.onopen = function ()
                 {
@@ -39,30 +138,94 @@ and open the template in the editor.
                 ws.onmessage = function (evt)
                 {
                     console.log(evt.data);
+                    var data = JSON.parse(evt.data);
+                    switch (data.cmd) {
+                        case cmd_name:
+                            set_name(data);
+                            break;
+                        case cmd_chat:
+                            add_chat(data);
+                            break;
+                        case cmd_msg:
+                            break;
+                        default:
+                            console.log('unknown cmd');
+                    }
                 };
-
-                ws.onclose = function(evt)
+                ws.onclose = function (evt)
                 {
                     console.log("WebSocketClosed!");
                 };
-
-                ws.onerror = function(evt)
+                ws.onerror = function (evt)
                 {
                     console.log("WebSocketError!");
                 };
-                
+
+                function add_chat(data) {
+                     var name = data.name;
+                     var chat = data.chat;
+                     if(name == self_info.name) {
+                         color = 'yellow';
+                     }else{
+                         color = 'blue';
+                     }
+                     $("#chat").append('<li><span class="'+color+'">'+name+'</span> : <span class="green">'+chat+'</span></li>');
+                }
+
+                function add_msg() {
+
+                }
+
+                function set_self_info(self) {
+                    self_info.hp = self.hp;
+                    self_info.mp = self.mp;
+                    self_info.max_hp = self.max_hp;
+                    self_info.max_mp = self.max_mp;
+                    self_info.win = self.win;
+                    self_info.lose = self.lose;
+
+                    var text_hp = self.hp + '/' + self.max_hp;
+                    var text_mp = self.mp + '/' + self.max_mp;
+                    var text_lose = self.win + '/' + self.lose;
+                    $("#self_hp").text(text_hp);
+                    $("#self_mp").text(text_mp);
+                    $("#self_vs").text(text_lose);
+                }
+
+                function set_enemy_info(enemy) {
+                    var text_hp = enemy.hp + '/' + enemy.max_hp;
+                    var text_mp = enemy.mp + '/' + enemy.max_mp;
+                    var text_lose = enemy.win + '/' + enemy.lose;
+                    $("#enemy_name").text(html_encode(enemy.name);
+                            $("#enemy_hp").text(text_hp);
+                    $("#enemy_mp").text(text_mp);
+                    $("#enemy_vs").text(text_lose);
+                }
+
+                function set_name(data) {
+                    if (data.r != 0) {
+                        alert(data.msg);
+                        init();
+                    } else {
+                        $("#self_name").text(html_encode(data.name));
+                    }
+                }
+
                 var user_name = 'daxia';
                 function init() {
                     var name = prompt("input your name");
-                    var data = {cmd: 1, name: name};
+                    var data = {cmd: cmd_name, name: name};
                     ws.send(JSON.stringify(data));
                 }
                 init();
-                
-                $("#submitButton").click(function(){
-                    ws.send($("#msg").val());
-                });
 
+
+                $(".btn-send").click(function () {
+                    var text = $("#chat_input").val();
+                    var data = {cmd: cmd_chat, chat: text};
+                    ws.send(JSON.stringify(data));
+                    $("#chat_input").val("");
+                });
             });
         </script>
     </body>
