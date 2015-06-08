@@ -6,7 +6,7 @@ and open the template in the editor.
 -->
 <html>
     <head>
-        <title>TODO supply a title</title>
+        <title>Jianghu Game</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
@@ -89,8 +89,6 @@ and open the template in the editor.
             <a href="javascript:;" class="btn btn-send">Send</a>
             <p>Chat Msg</p>
             <ul id="chat_history" style="width:100%; height:200px;">
-                <li>fdssfd</li>
-                <li>fdssfd</li>
             </ul>
 
         </div>
@@ -104,7 +102,8 @@ and open the template in the editor.
                         cmd_rest = 5,
                         cmd_reborn = 6,
                         cmd_msg = 7,
-                        cmd_list = 8;
+                        cmd_list = 8,
+                        cmd_error = 999;
                 var self_info = {
                     hp: 0,
                     max_hp: 0,
@@ -147,6 +146,12 @@ and open the template in the editor.
                             add_chat(data);
                             break;
                         case cmd_msg:
+                            add_msg(data);
+                            set_self_info(data.self);
+                            set_enemy_info(data.enemy);
+                            break;
+                        case cmd_error:
+                            alert(data.msg);
                             break;
                         default:
                             console.log('unknown cmd');
@@ -170,14 +175,26 @@ and open the template in the editor.
                     } else {
                         color = 'blue';
                     }
-                    $("#chat_history").prepend('<li><span class="' + color + '">' + name + '</span> ('+time+') : <span class="green">' + chat + '</span></li>');
+                    $("#chat_history").prepend('<li><span class="' + color + '">' + html_encode(name) + '</span> (' + time + ') : <span class="green">' + html_encode(chat) + '</span></li>');
                 }
 
-                function add_msg() {
-
+                function add_msg(data) {
+                    if (data.list == undefined) {
+                        console.log('data.list undefined');
+                        return;
+                    }
+                    var time = data.time;
+                    for (var i in data.list) {
+                        var msg = data.list[i].msg;
+                        $("#msg").prepend('<li>(' + time + ') : <span>' + html_encode(msg) + '</span></li>');
+                    }
                 }
 
                 function set_self_info(self) {
+                    if (self == undefined) {
+                        console.log('self undefined');
+                        return;
+                    }
                     self_info.hp = self.hp;
                     self_info.mp = self.mp;
                     self_info.max_hp = self.max_hp;
@@ -194,6 +211,10 @@ and open the template in the editor.
                 }
 
                 function set_enemy_info(enemy) {
+                    if (enemy == undefined) {
+                        console.log('enemy undefined');
+                        return;
+                    }
                     var text_hp = enemy.hp + '/' + enemy.max_hp;
                     var text_mp = enemy.mp + '/' + enemy.max_mp;
                     var text_lose = enemy.win + '/' + enemy.lose;
@@ -214,7 +235,9 @@ and open the template in the editor.
 
                 var user_name = 'daxia';
                 function init() {
-                    var name = prompt("input your name");
+                    do {
+                        var name = prompt("input your name(not blank)");
+                    } while (($.trim(name)).length == 0);
                     var data = {cmd: cmd_name, name: name};
                     ws.send(JSON.stringify(data));
                 }
@@ -223,6 +246,10 @@ and open the template in the editor.
 
                 $(".btn-send").click(function () {
                     var text = $("#chat_input").val();
+                    if (($.trim(text)).length == 0) {
+                        alert('should not be blank!');
+                        return;
+                    }
                     var data = {cmd: cmd_chat, chat: text};
                     ws.send(JSON.stringify(data));
                     $("#chat_input").val("");
