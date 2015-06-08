@@ -24,6 +24,7 @@ class GameServer {
     const SUB_PUB_KEY = 'sub_pub_key';
     
     private $temp;
+    private $has_sub = false;
 
     public function __construct() {
         $this->ws = new swoole_websocket_server("0.0.0.0", 9502);
@@ -43,11 +44,13 @@ class GameServer {
         $this->redis = new redis();
         $this->redis->connect('127.0.0.1', 6379);
         $this->ws->start();
-        $this->sub();
     }
     
     public function onOpen($ws, $request) {
         echo "hello, " . $request->fd . " welcome\n";
+        if(!$this->has_sub && !$ws->taskworker) {
+            $this->sub();
+        }
     }
 
     public function onMessage($ws, $frame) {
