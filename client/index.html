@@ -47,7 +47,7 @@ and open the template in the editor.
             #panel_msg li:nth-child(odd) { background: #eee; }
 
             #panel_chat li{padding: 5px 10px;}
-            #panel_chat li{border-bottom: solid rgb(255, 0 , 0 ) 1px;}
+            #panel_chat li{border-top: solid rgb(255, 0 , 0 ) 1px;}
         </style>
     </head>
     <body>
@@ -164,12 +164,13 @@ and open the template in the editor.
                 function add_chat(data) {
                     var name = data.name;
                     var chat = data.chat;
+                    var time = data.time;
                     if (name == self_info.name) {
                         color = 'yellow';
                     } else {
                         color = 'blue';
                     }
-                    $("#chat").append('<li><span class="' + color + '">' + name + '</span> : <span class="green">' + chat + '</span></li>');
+                    $("#chat_history").prepend('<li><span class="' + color + '">' + name + '</span> ('+time+') : <span class="green">' + chat + '</span></li>');
                 }
 
                 function add_msg() {

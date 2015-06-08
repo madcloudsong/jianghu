@@ -66,6 +66,7 @@ class GameServer {
             'cmd' => self::cmd_chat,
             'name' => 'test',
             'chat' => $chat,
+            'time' => time('H:i:s'),
         );
         $this->ws->push($fd, json_encode($result));
     }
