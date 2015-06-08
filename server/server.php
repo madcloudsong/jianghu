@@ -55,7 +55,7 @@ class GameServer {
                 break;
             default: $ws->push($frame->fd, json_encode(array('r' => 1, 'msg' => 'unknown cmd')));
         }
-        $this->task('test');
+        $ws->task('test');
         //$ws->push($frame->fd, "server: {$frame->data}");
     }
 
