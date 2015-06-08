@@ -21,6 +21,9 @@ class GameServer {
     public $ws;
     public $redis;
     public $user_array = array();
+    const SUB_PUB_KEY = 'sub_pub_key';
+    
+    private $temp;
 
     public function __construct() {
         $this->ws = new swoole_websocket_server("0.0.0.0", 9502);
@@ -32,15 +35,18 @@ class GameServer {
             'dispatch_mode' => 2,
             'debug_mode'=> 1
         ));
-        $this->ws->on('open', function ($ws, $request) {
-            echo "hello, " . $request->fd . " welcome\n";
-        });
+        $this->ws->on('open', array($this, 'onOpen'));
         $this->ws->on('message', array($this, 'onMessage'));
         $this->ws->on('close', array($this, 'onClose'));
         $this->ws->on('Task', array($this, 'onTask'));
         $this->ws->on('Finish', array($this, 'onFinish'));
         $this->redis = new redis('127.0.0.1', 6379);
         $this->ws->start();
+        $this->sub();
+    }
+    
+    public function onOpen($ws, $request) {
+        echo "hello, " . $request->fd . " welcome\n";
     }
 
     public function onMessage($ws, $frame) {
@@ -64,19 +70,26 @@ class GameServer {
         echo "client {$fd} closed\n";
     }
     
-    public function onTask($serv, $task_id, $from_id, $data){
+    public function onTask($ws, $task_id, $from_id, $data){
         echo $task_id."|".$from_id."|".var_export($data,true) . "\n";
-        sleep(rand(1, 5));
-        return $task_id . '|'.$from_id . $data;
+        $this->redis->subscribe(array(self::SUB_PUB_KEY), array($this, 'onSub'));
+        return $task_id . '|'.$from_id . "|" . $this->temp;
+    }
+    
+    public function onSub($redis, $chan, $msg){
+        $redis->unsubscribe();
+        $this->temp = $msg;
+        echo 'onsub' . $chan . '|' . $msg . "\n";
     }
 
-    public function onFinish($serv, $task_id, $data){
-        echo 'wid : '. $serv->worker_id . $task_id."|".var_export($data,true) . "\n";
-
+    public function onFinish($ws, $task_id, $data){
+        echo 'wid : '. $ws->worker_id . $task_id."|".var_export($data,true) . "\n";
+        $this->redis->subscribe(array(self::SUB_PUB_KEY), array($this, 'onSub'));
     }
 
-    public function sub_chat() {
-        
+    public function sub() {
+        $wid = $this->ws->worker_id;
+        $this->ws->task($wid);
     }
 
     protected function user_key($name) {
