@@ -40,7 +40,8 @@ class GameServer {
         $this->ws->on('close', array($this, 'onClose'));
         $this->ws->on('Task', array($this, 'onTask'));
         $this->ws->on('Finish', array($this, 'onFinish'));
-        $this->redis = new redis('127.0.0.1', 6379);
+        $this->redis = new redis();
+        $this->redis->connect('127.0.0.1', 6379);
         $this->ws->start();
         $this->sub();
     }
