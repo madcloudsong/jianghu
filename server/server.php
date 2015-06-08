@@ -72,6 +72,7 @@ class GameServer {
     }
     
     public function onTask($ws, $task_id, $from_id, $data){
+        ini_set('default_socket_timeout', -1);
         echo $task_id."|".$from_id."|".var_export($data,true) . "\n";
         $this->redis->subscribe(array(self::SUB_PUB_KEY), array($this, 'onSub'));
         return $task_id . '|'.$from_id . "|" . $this->temp;
