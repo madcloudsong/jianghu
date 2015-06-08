@@ -64,10 +64,9 @@ class GameServer {
     }
     
     public function onTask($serv, $task_id, $from_id, $data){
-        echo 'wid : '. $serv->worker_id . "\n";
         echo $task_id."|".$from_id."|".var_export($data,true) . "\n";
         sleep(rand(1, 5));
-        return $task_id . '|'.$from_id;
+        return $task_id . '|'.$from_id . $data;
     }
 
     public function onFinish($serv, $task_id, $data){
