@@ -55,7 +55,7 @@ class GameServer {
                 break;
             default: $ws->push($frame->fd, json_encode(array('r' => 1, 'msg' => 'unknown cmd')));
         }
-        $ws->task('test');
+        $ws->task('wid:'.$ws->worker_id .'|'. 'test');
         //$ws->push($frame->fd, "server: {$frame->data}");
     }
 
@@ -71,8 +71,7 @@ class GameServer {
     }
 
     public function onFinish($serv, $task_id, $data){
-        echo 'wid : '. $serv->worker_id . "\n";
-        echo $task_id."|".var_export($data,true) . "\n";
+        echo 'wid : '. $serv->worker_id . $task_id."|".var_export($data,true) . "\n";
 
     }
 
