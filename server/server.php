@@ -20,7 +20,9 @@ class GameServer {
 
     public $ws;
     public $redis;
-    public $user_array = array();
+    public $redis_pub;
+    public $redis_data;
+    public $fd_array = array();
     const SUB_PUB_KEY = 'sub_pub_key';
     
     private $temp;
@@ -29,8 +31,8 @@ class GameServer {
     public function __construct() {
         $this->ws = new swoole_websocket_server("0.0.0.0", 9502);
         $this->ws->set(array(
-            'worker_num' => 8,
-            'task_worker_num' => 8,
+            'worker_num' => 2,
+            'task_worker_num' => 2,
             'daemonize' => false,
             'max_request' => 10000,
             'dispatch_mode' => 2,
@@ -41,8 +43,13 @@ class GameServer {
         $this->ws->on('close', array($this, 'onClose'));
         $this->ws->on('Task', array($this, 'onTask'));
         $this->ws->on('Finish', array($this, 'onFinish'));
+        ini_set('default_socket_timeout', -1);
         $this->redis = new redis();
         $this->redis->connect('127.0.0.1', 6379);
+        $this->redis_pub = new redis();
+        $this->redis_pub->connect('127.0.0.1', 6379);
+        $this->redis_data = new redis();
+        $this->redis_data->connect('127.0.0.1', 6379);
         $this->ws->start();
     }
     
@@ -51,6 +58,7 @@ class GameServer {
         if(!$this->has_sub && !$ws->taskworker) {
             $this->sub();
         }
+        $this->fd_array[$request->fd] = 1;
     }
 
     public function onMessage($ws, $frame) {
@@ -69,13 +77,13 @@ class GameServer {
 
     public function onClose($ws, $fd) {
         echo "client {$fd} closed\n";
+        unset($this->fd_array[$fd]);
     }
     
     public function onTask($ws, $task_id, $from_id, $data){
-        ini_set('default_socket_timeout', -1);
         echo $task_id."|".$from_id."|".var_export($data,true) . "\n";
         $this->redis->subscribe(array(self::SUB_PUB_KEY), array($this, 'onSub'));
-        return $task_id . '|'.$from_id . "|" . $this->temp;
+        return $this->temp;
     }
     
     public function onSub($redis, $chan, $msg){
@@ -87,6 +95,9 @@ class GameServer {
     public function onFinish($ws, $task_id, $data){
         echo 'wid : '. $ws->worker_id . $task_id."|".var_export($data,true) . "\n";
         $this->sub();
+        foreach($this->fd_array as $fd => $value){ 
+            $ws->push($fd, $data);
+        }
     }
 
     public function sub() {
@@ -120,7 +131,7 @@ class GameServer {
             'chat' => $chat,
             'time' => date('H:i:s'),
         );
-        $this->ws->push($fd, json_encode($result));
+        $this->redis_pub->publish(self::SUB_PUB_KEY, json_encode($result));
     }
 
     public function send_msg($fd, $msg, $self, $enemy) {
