@@ -64,6 +64,7 @@ class GameServer {
             'r' => 0,
             'msg' => '',
             'cmd' => self::cmd_chat,
+            'name' => 'test',
             'chat' => $chat,
         );
         $this->ws->push($fd, json_encode($result));
