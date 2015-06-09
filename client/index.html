@@ -113,8 +113,6 @@ and open the template in the editor.
             <div id="panel_msg" style="width:100%; height:200px;">
                 <p>System Msg</p>
                 <ul id="msg">
-                    <li>fdssfd</li>
-                    <li>fdssfd</li>
                 </ul>
             </div>
 
@@ -251,15 +249,9 @@ and open the template in the editor.
                 }
 
                 function add_msg(data) {
-                    if (data.list == undefined) {
-                        console.log('data.list undefined');
-                        return;
-                    }
                     var time = data.time;
-                    for (var i in data.list) {
-                        var msg = data.list[i].msg;
-                        $("#msg").prepend('<li>(' + time + ') : <span>' + html_encode(msg) + '</span></li>');
-                    }
+                    var name = data.name;
+                    $("#msg").append('<li>' + name + '(' + time + ') : <span>' + data.msg + '</span></li>');
                 }
 
                 function add_system(data) {
@@ -269,17 +261,6 @@ and open the template in the editor.
                     $("#chat_history").prepend('<li><span class="orange">[SYSTEM MSG]</span> (' + time + ') : <span class="green">' + html_encode(chat) + '</span></li>');
                 }
 
-                function add_msg(data) {
-                    if (data.list == undefined) {
-                        console.log('data.list undefined');
-                        return;
-                    }
-                    var time = data.time;
-                    for (var i in data.list) {
-                        var msg = data.list[i].msg;
-                        $("#msg").prepend('<li>(' + time + ') : <span>' + html_encode(msg) + '</span></li>');
-                    }
-                }
 
                 function set_self_info(self) {
                     if (self == undefined) {
@@ -375,7 +356,7 @@ and open the template in the editor.
                     send_with_skey(data);
                     $("#chat_input").val("");
                 });
-                
+
                 $(".btn-clear").click(function () {
                     $("#chat_history").children().remove();
                 });

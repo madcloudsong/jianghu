@@ -171,7 +171,7 @@ class GameServer {
                         'lose' => $user_info['lose'],
                     );
                     $this->send_system_msg($user_info['name'] . ' come in');
-                    $this->send_welcome($fd, $name);
+                    $this->send_welcome($fd, $user_info['name']);
                 }
             } else {
                 $result['r'] = 1;
@@ -281,10 +281,14 @@ class GameServer {
             $this->log('set name twice', $fd);
         }
     }
-    
-    protected function send_welcome($fd, $name)  {
-        $msg = 'Welcome ' . $name;
-        $this->send_msg($fd, $msg);
+
+    protected function send_welcome($fd, $name) {
+        $msg = $this->add_span("Welcome $name", 'green');
+        $this->send_msg($fd, $this->add_span(self::NAME_GAME, 'orange'), $msg);
+    }
+
+    protected function add_span($msg, $color = 'black') {
+        return '<span class="' . $color . '">' . $msg . '</span>';
     }
 
     public function init_attr() {
@@ -332,17 +336,18 @@ class GameServer {
         $this->ws->task(array('type' => 1, 'data' => $data));
     }
 
-    public function send_msg($fd, $msg, $self = null, $enemy = null) {
+    public function send_msg($fd, $name, $msg, $self = null, $enemy = null) {
         $result = array(
             'r' => 0,
             'cmd' => self::cmd_msg,
+            'name' => $name,
             'msg' => $msg,
             'time' => date('H:i:s'),
         );
-        if($self !== null) {
+        if ($self !== null) {
             $result['self'] = $self;
         }
-        if($enemy !== null) {
+        if ($enemy !== null) {
             $result['enemy'] = $enemy;
         }
         $this->ws->push($fd, json_encode($result));
