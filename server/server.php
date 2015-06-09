@@ -149,28 +149,25 @@ class GameServer {
                 $key_skey = $this->key_id_fd_skey($userid);
                 $login_info = $this->redis->hGetAll($key_skey);
                 if (!empty($login_info)) {
-                    $result['r'] = 2;
-                    $result['msg'] = 'login failed: already login!';
                     $this->log("login failed: already login! userid=$userid", $fd);
-                } else {
-                    $this->log("login success: userid=$userid", $fd);
-                    $result['userid'] = $user_info['userid'];
-                    $skey = md5($userid . rand(1, 99999));
-                    $result['skey'] = $skey;
-                    $this->redis->hMset($key_skey, array('skey' => $skey, 'fd' => $fd));
-                    $this->add_fd($fd, $userid);
-                    if (isset($user_info['name'])) {
-                        $result['name'] = $user_info['name'];
-                        $result['self'] = array(
-                            'hp' => $user_info['hp'],
-                            'max_hp' => $user_info['max_hp'],
-                            'mp' => $user_info['mp'],
-                            'max_mp' => $user_info['max_mp'],
-                            'win' => $user_info['win'],
-                            'lose' => $user_info['lose'],
-                        );
-                        $this->send_system_msg($user_info['name'] . ' come in');
-                    }
+                }
+                $this->log("login success: userid=$userid", $fd);
+                $result['userid'] = $user_info['userid'];
+                $skey = md5($userid . rand(1, 99999));
+                $result['skey'] = $skey;
+                $this->redis->hMset($key_skey, array('skey' => $skey, 'fd' => $fd));
+                $this->add_fd($fd, $userid);
+                if (isset($user_info['name'])) {
+                    $result['name'] = $user_info['name'];
+                    $result['self'] = array(
+                        'hp' => $user_info['hp'],
+                        'max_hp' => $user_info['max_hp'],
+                        'mp' => $user_info['mp'],
+                        'max_mp' => $user_info['max_mp'],
+                        'win' => $user_info['win'],
+                        'lose' => $user_info['lose'],
+                    );
+                    $this->send_system_msg($user_info['name'] . ' come in');
                 }
             } else {
                 $result['r'] = 1;
