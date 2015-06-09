@@ -250,8 +250,6 @@ class GameServer {
         $this->ws->push($fd, json_encode($result));
     }
 
-    
-
     public function check_login($fd, $data) {
         $userid = $data['userid'];
         $skey = $data['skey'];
@@ -318,7 +316,7 @@ class GameServer {
             $this->log('set name twice', $fd);
         }
     }
-    
+
     protected function pushto($fd, $data) {
         $this->ws->push($fd, json_encode($data));
     }
@@ -430,7 +428,7 @@ class GameServer {
         );
         $this->pushto($fd, $result);
     }
-    
+
     public function cmd_pvp($fd, $data) {
         if (!$this->check_login($fd, $data)) {
             return;
@@ -439,7 +437,7 @@ class GameServer {
         $did = $data['did'];
         $this->pvp($userid, $did);
     }
-    
+
     public function cmd_pvp_ready($fd, $data) {
         if (!$this->check_login($fd, $data)) {
             return;
@@ -462,7 +460,7 @@ class GameServer {
         $list = array();
         $count = 0;
         foreach ($userids as $userid) {
-            if($userid == $current_id){
+            if ($userid == $current_id) {
                 continue;
             }
             $key_roomid = Key::key_room_id($userid);
@@ -476,7 +474,7 @@ class GameServer {
                 }
             }
         }
-        $this->log('userid:'.$current_id . ' | get_pvp_list: '.var_export($list, true));
+        $this->log('userid:' . $current_id . ' | get_pvp_list: ' . var_export($list, true));
         return $list;
     }
 
@@ -544,11 +542,37 @@ class GameServer {
     }
 
     public function notice_war_defence($aid, $did) {
+        $ainfo = $this->get_user_war_info($aid);
+        $data = array(
+            'cmd' => self::cmd_war_defence,
+            'r' => 0,
+            'msg' => '',
+            'aid' => $aid,
+            'enemy' => $ainfo,
+        );
+        $dfd = $this->get_fd_by_id($did);
+        if ($dfd !== false) {
+            $this->pushto($dfd, $data);
+        }
         
+        $this->send_msg($dfd, $ainfo['name'], 'want to fight with you');
     }
 
     public function notice_war_wait($aid, $did) {
+        $dinfo = $this->get_user_war_info($did);
+        $data = array(
+            'cmd' => self::cmd_war_defence,
+            'r' => 0,
+            'msg' => '',
+            'did' => $did,
+            'enemy' => $dinfo,
+        );
+        $afd = $this->get_fd_by_id($aid);
+        if ($afd !== false) {
+            $this->pushto($afd, $data);
+        }
         
+        $this->send_msg($afd, $dinfo['name'], 'waiting for accept');
     }
 
     public function notice_war_start($userid, $enemy_info) {
