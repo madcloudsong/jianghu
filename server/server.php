@@ -458,7 +458,7 @@ class GameServer {
     protected function get_pvp_list($current_id) {
         $key_fd = Key::key_fd_id();
         $userids = $this->redis->hVals($key_fd);
-        $userids = shuffle($userids);
+        shuffle($userids);
         $list = array();
         $count = 0;
         foreach ($userids as $userid) {
