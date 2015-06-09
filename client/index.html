@@ -13,6 +13,7 @@ and open the template in the editor.
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { font: 13px Helvetica, Arial; width: 100%;}
             .red{color:red;}
+            .orange{color:orange;}
             .blue{color:blue;}
             .pink{color:pink;}
             .yellow{color:yellow}
@@ -41,6 +42,33 @@ and open the template in the editor.
                 width: 24%;
                 background-color: red;
             }
+            .btn-login, .btn-register{
+                display: block;
+                padding: 20px 20px;
+                border-radius: 7px;
+                margin: 10px;
+                background-color: green;
+            }
+            .btn-register{
+                background-color: blue;
+            }
+            .hidden{
+                display: none;
+            }
+            .input{
+                height:40px;
+                width: 100%;
+            }
+            .left-tr{
+                width: 20%;
+                text-align: center;
+            }
+            .right-tr{
+                width: 80%;
+            }
+            #login table tr{
+                height: 50px;
+            }
 
             #panel_msg { list-style-type: none; margin: 0; padding: 0; }
             #panel_msg li { padding: 5px 10px; }
@@ -51,46 +79,62 @@ and open the template in the editor.
         </style>
     </head>
     <body>
-        <div id="panel_enemy">
-            <div id="panel_enemy_info">
-                <p><span>Name:</span><span id="enemy_name">Daxia</span></p>
-                <p><span>Life:</span><span id="enemy_hp">00</span></p>
-                <p><span>Mp:</span><span id="enemy_mp">00</span></p>
-                <p><span>VS:</span><span id="enemy_vs">5/2</span></p>
-                <div style="position: absolute;right:0px;top:0px;">
-                    <a href="javascript:;" class="btn btn-pvp">pvp</a>
-                    <a href="javascript:;" class="btn btn-pve">pve</a>
+        <div id="login" style="width: 100%;">
+            <div style="height:100px;">
+            </div>
+            <table style="width:100%">
+                <tr>
+                    <td class="left-tr"><label>ID</label></td><td   class="left-tr"><input type="text" class="input" id="userid"/></td>
+                </tr>
+                <tr>
+                    <td class="left-tr"><label>PW</label></td><td class="right-tr"><input type="password" class="input" id="password"/></td>
+                </tr>
+            </table>
+            <a href="javascript:;" class="btn btn-login">Login</a>
+            <a href="javascript:;" class="btn btn-register">Register</a>
+        </div>
+        <div id="main" class="hidden">
+            <div id="panel_enemy">
+                <div id="panel_enemy_info">
+                    <p><span>Name:</span><span id="enemy_name">Daxia</span></p>
+                    <p><span>Life:</span><span id="enemy_hp">00</span></p>
+                    <p><span>Mp:</span><span id="enemy_mp">00</span></p>
+                    <p><span>VS:</span><span id="enemy_vs">5/2</span></p>
+                    <div style="position: absolute;right:0px;top:0px;">
+                        <a href="javascript:;" class="btn btn-pvp">pvp</a>
+                        <a href="javascript:;" class="btn btn-pve">pve</a>
+                    </div>
                 </div>
+
+            </div>
+            <div id="panel_msg" style="width:100%; height:200px;">
+                <p>System Msg</p>
+                <ul id="msg">
+                    <li>fdssfd</li>
+                    <li>fdssfd</li>
+                </ul>
             </div>
 
-        </div>
-        <div id="panel_msg" style="width:100%; height:200px;">
-            <p>System Msg</p>
-            <ul id="msg">
-                <li>fdssfd</li>
-                <li>fdssfd</li>
-            </ul>
-        </div>
+            <div id="panel_self">
+                <p><span>Name:</span><span id="self_name">Daxia</span></p>
+                <p><span>Life:</span><span id="self_hp">00</span></p>
+                <p><span>Mp:</span><span id="self_mp">00</span></p>
+                <p><span>VS:</span><span id="self_vs">5/2</span></p>
+            </div>
+            <div id="panel_op">
+                <a href="javascript:;" class="btn btn-attack">Attack</a>
+                <a href="javascript:;" class="btn btn-defence">Defence</a>
+                <a href="javascript:;" class="btn btn-rest">Rest</a>
+                <a href="javascript:;" class="btn btn-reborn">Reborn</a>
+            </div>
+            <div id="panel_chat" style="margin-top: 20px;">
+                <input type="text" id="chat_input" style="height:30px;width:50%;"/>
+                <a href="javascript:;" class="btn btn-send">Send</a>
+                <p>Chat Msg</p>
+                <ul id="chat_history" style="width:100%; height:200px;">
+                </ul>
 
-        <div id="panel_self">
-            <p><span>Name:</span><span id="self_name">Daxia</span></p>
-            <p><span>Life:</span><span id="self_hp">00</span></p>
-            <p><span>Mp:</span><span id="self_mp">00</span></p>
-            <p><span>VS:</span><span id="self_vs">5/2</span></p>
-        </div>
-        <div id="panel_op">
-            <a href="javascript:;" class="btn btn-attack">Attack</a>
-            <a href="javascript:;" class="btn btn-defence">Defence</a>
-            <a href="javascript:;" class="btn btn-rest">Rest</a>
-            <a href="javascript:;" class="btn btn-reborn">Reborn</a>
-        </div>
-        <div id="panel_chat" style="margin-top: 20px;">
-            <input type="text" id="chat_input" style="height:30px;width:50%;"/>
-            <a href="javascript:;" class="btn btn-send">Send</a>
-            <p>Chat Msg</p>
-            <ul id="chat_history" style="width:100%; height:200px;">
-            </ul>
-
+            </div>
         </div>
         <script type="text/javascript" src="http://code.jquery.com/jquery-1.11.1.js"></script>
         <script>
@@ -103,6 +147,9 @@ and open the template in the editor.
                         cmd_reborn = 6,
                         cmd_msg = 7,
                         cmd_list = 8,
+                        cmd_system = 8,
+                        cmd_login = 100,
+                        cmd_register = 101,
                         cmd_error = 999;
                 var self_info = {
                     hp: 0,
@@ -112,6 +159,10 @@ and open the template in the editor.
                     win: 0,
                     lose: 0
                 };
+                var loading = true;
+                var userid = '';
+                var skey = '';
+                var username = 'daxia';
 
                 function html_encode(str)
                 {
@@ -132,6 +183,7 @@ and open the template in the editor.
                 ws.onopen = function ()
                 {
                     console.log("open");
+                    loading = false;
                     //ws.send("hello");
                 };
                 ws.onmessage = function (evt)
@@ -141,6 +193,12 @@ and open the template in the editor.
                     switch (data.cmd) {
                         case cmd_name:
                             set_name(data);
+                            break;
+                        case cmd_login:
+                            cb_login(data);
+                            break;
+                        case cmd_register:
+                            cb_register(data);
                             break;
                         case cmd_chat:
                             add_chat(data);
@@ -152,6 +210,9 @@ and open the template in the editor.
                             break;
                         case cmd_error:
                             alert(data.msg);
+                            break;
+                        case cmd_system:
+                            add_system(data);
                             break;
                         default:
                             console.log('unknown cmd');
@@ -176,6 +237,25 @@ and open the template in the editor.
                         color = 'blue';
                     }
                     $("#chat_history").prepend('<li><span class="' + color + '">' + html_encode(name) + '</span> (' + time + ') : <span class="green">' + html_encode(chat) + '</span></li>');
+                }
+
+                function add_msg(data) {
+                    if (data.list == undefined) {
+                        console.log('data.list undefined');
+                        return;
+                    }
+                    var time = data.time;
+                    for (var i in data.list) {
+                        var msg = data.list[i].msg;
+                        $("#msg").prepend('<li>(' + time + ') : <span>' + html_encode(msg) + '</span></li>');
+                    }
+                }
+                
+                function add_system(data) {
+                    var name = data.name;
+                    var chat = data.chat;
+                    var time = data.time;
+                    $("#chat_history").prepend('<li><span class="orange">[SYSTEM MSG]</span> (' + time + ') : <span class="green">' + html_encode(chat) + '</span></li>');
                 }
 
                 function add_msg(data) {
@@ -230,10 +310,10 @@ and open the template in the editor.
                         init();
                     } else {
                         $("#self_name").text(html_encode(data.name));
+                        set_self_info(data.self);
                     }
                 }
 
-                var user_name = 'daxia';
                 function init() {
                     do {
                         var name = prompt("input your name(not blank)");
@@ -241,7 +321,37 @@ and open the template in the editor.
                     var data = {cmd: cmd_name, name: name};
                     ws.send(JSON.stringify(data));
                 }
-                init();
+
+                function cb_login(data) {
+                    if (data.r == 0) {
+                        userid = data.userid;
+                        skey = data.skey;
+                        $("#login").addClass('hidden');
+                        $("#main").removeClass('hidden');
+                        if (data.username != undefined) {
+                            username = data.username;
+                            $("#self_name").text(html_encode(username));
+                            set_self_info(data.self);
+                        } else {
+                            init();
+                        }
+                    } else {
+                        alert(data.msg);
+                    }
+                }
+
+                function cb_register(data) {
+                    if (data.r == 0) {
+                        userid = data.userid;
+                        skey = data.skey;
+                        $("#login").addClass('hidden');
+                        $("#main").removeClass('hidden');
+                        init();
+                    } else {
+                        alert(data.msg);
+                    }
+                }
+
 
 
                 $(".btn-send").click(function () {
@@ -253,6 +363,42 @@ and open the template in the editor.
                     var data = {cmd: cmd_chat, chat: text};
                     ws.send(JSON.stringify(data));
                     $("#chat_input").val("");
+                });
+
+                $(".btn-login").click(function () {
+                    if (loading) {
+                        return;
+                    }
+                    var userid = $.trim($("#userid").val());
+                    var password = $.trim($("#password").val());
+                    if ((userid).length == 0) {
+                        alert('userid should not be blank!');
+                        return;
+                    }
+                    if ((password).length == 0) {
+                    alert('password should not be blank!');
+                            return;
+                    }
+                    var data = {cmd: cmd_login, userid userid, password: password};
+                    ws.send(JSON.stringify(data));
+                });
+
+                $(".btn-register").click(function () {
+                    if (loading) {
+                        return;
+                    }
+                    var userid = $.trim($("#userid").val());
+                    var password = $.trim($("#password").val());
+                    if ((userid).length == 0) {
+                        alert('userid should not be blank!');
+                        return;
+                    }
+                    if ((password).length == 0) {
+                    alert('password should not be blank!');
+                            return;
+                    }
+                    var data = {cmd: cmd_register, userid userid, password: password};
+                    ws.send(JSON.stringify(data));
                 });
             });
         </script>
