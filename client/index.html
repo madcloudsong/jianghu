@@ -334,8 +334,8 @@ and open the template in the editor.
                         skey = data.skey;
                         $("#login").addClass('hidden');
                         $("#main").removeClass('hidden');
-                        if (data.username != undefined) {
-                            username = data.username;
+                        if (data.name != undefined) {
+                            username = data.name;
                             $("#self_name").text(html_encode(username));
                             set_self_info(data.self);
                         } else {

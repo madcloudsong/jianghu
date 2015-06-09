@@ -158,6 +158,7 @@ class GameServer {
                             'win' => $user_info['win'],
                             'lose' => $user_info['lose'],
                         );
+                        $this->send_system_msg($user_info['name'] . ' come in');
                     }
                 }
             } else {
@@ -262,6 +263,7 @@ class GameServer {
             $this->redis->hMset($key_user, $attr);
             $result['self'] = $attr;
             $this->ws->push($fd, json_encode($result));
+            $this->send_system_msg($name . ' come in');
         } else {
             $this->log('set name twice', $fd);
         }
@@ -291,15 +293,21 @@ class GameServer {
             return;
         }
         $chat = $data['chat'];
+        $user_info = $this->get_user_info($data['userid']);
         $result = array(
             'r' => 0,
             'msg' => '',
             'cmd' => self::cmd_chat,
-            'name' => 'test',
+            'name' => $user_info['name'],
             'chat' => $chat,
             'time' => date('H:i:s'),
         );
         $this->broadcast(json_encode($result));
+    }
+    
+    public function get_user_info($userid) {
+        $key_user = $this->key_user($userid);
+        return $this->redis->hGetAll($key_user);
     }
 
     public function broadcast($data) {
