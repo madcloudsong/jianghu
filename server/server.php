@@ -64,6 +64,8 @@ class GameServer {
     public function onWorkerStart($serv, $worker_id) {
         if ($worker_id == 0) {
             $serv->tick(1000, array($this, 'onTimer'));
+            $key = $this->key_fd_id();
+            $this->redis->delete($key);
         }
     }
 
