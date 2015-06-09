@@ -553,15 +553,14 @@ class GameServer {
         $dfd = $this->get_fd_by_id($did);
         if ($dfd !== false) {
             $this->pushto($dfd, $data);
+            $this->send_msg($dfd, $ainfo['name'], 'want to fight with you');
         }
-        
-        $this->send_msg($dfd, $ainfo['name'], 'want to fight with you');
     }
 
     public function notice_war_wait($aid, $did) {
         $dinfo = $this->get_user_war_info($did);
         $data = array(
-            'cmd' => self::cmd_war_defence,
+            'cmd' => self::cmd_war_wait,
             'r' => 0,
             'msg' => '',
             'did' => $did,
@@ -570,9 +569,30 @@ class GameServer {
         $afd = $this->get_fd_by_id($aid);
         if ($afd !== false) {
             $this->pushto($afd, $data);
+            $this->send_msg($afd, $dinfo['name'], 'waiting for accept');
+        }
+    }
+    
+    public function notice_ready_timeout($aid, $did) {
+        $ainfo = $this->get_user_war_info($aid);
+        $dinfo = $this->get_user_war_info($did);
+        $data = array(
+            'cmd' => self::cmd_ready_timeout,
+            'r' => 0,
+            'msg' => '',
+        );
+        $afd = $this->get_fd_by_id($aid);
+        if ($afd !== false) {
+            $this->pushto($afd, $data);
+            $this->send_msg($afd, $dinfo['name'], 'waiting timeout for accept, cancel');
+        }
+        $dfd = $this->get_fd_by_id($did);
+        if ($dfd !== false) {
+            $this->pushto($dfd, $data);
+            $this->send_msg($dfd, $ainfo['name'], 'waiting timeout for accept, cancel');
         }
         
-        $this->send_msg($afd, $dinfo['name'], 'waiting for accept');
+        
     }
 
     public function notice_war_start($userid, $enemy_info) {
@@ -673,6 +693,8 @@ class GameServer {
                     $this->clear_user_war_state($did);
                     $this->redis->delete($key_room);
                     $this->log("remove timeout roomid: $roomid, aid: $aid, did: $did");
+                    //timeout handle
+                    $this->notice_ready_timeout($aid, $did);
                 } else if ($time + self::WAR_TIME_LIMIT < $current_time) {
                     //todo check winner
                     $this->redis->hDel($key_list, $roomid);
