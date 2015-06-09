@@ -88,7 +88,8 @@ class GameServer {
         $key_fd = $this->key_fd_id();
         $userid = $this->redis->hGet($key_fd, $fd);
         $key_id = $this->key_id_fd_skey($userid);
-        $username = $this->redis->hGet($key_id, 'name');
+        $key_user = $this->key_user($userid);
+        $username = $this->redis->hGet($key_user, 'name');
         $this->redis->hDel($key_fd, $fd);
         $this->redis->delete($key_id);
         $this->log("client {$fd} closed\n");
@@ -170,6 +171,7 @@ class GameServer {
                         'lose' => $user_info['lose'],
                     );
                     $this->send_system_msg($user_info['name'] . ' come in');
+                    $this->send_welcome($fd, $name);
                 }
             } else {
                 $result['r'] = 1;
@@ -274,9 +276,15 @@ class GameServer {
             $result['self'] = $attr;
             $this->ws->push($fd, json_encode($result));
             $this->send_system_msg($name . ' come in');
+            $this->send_welcome($fd, $name);
         } else {
             $this->log('set name twice', $fd);
         }
+    }
+    
+    protected function send_welcome($fd, $name)  {
+        $msg = 'Welcome ' . $name;
+        $this->send_msg($fd, $msg);
     }
 
     public function init_attr() {
@@ -324,19 +332,19 @@ class GameServer {
         $this->ws->task(array('type' => 1, 'data' => $data));
     }
 
-    public function send_msg($fd, $msg, $self, $enemy) {
-        if (!$this->check_login($fd, $data)) {
-            return;
-        }
+    public function send_msg($fd, $msg, $self = null, $enemy = null) {
         $result = array(
             'r' => 0,
-            'msg' => '',
             'cmd' => self::cmd_msg,
-            'name' => $msg,
-            'self' => $self,
-            'enemy' => $enemy,
+            'msg' => $msg,
             'time' => date('H:i:s'),
         );
+        if($self !== null) {
+            $result['self'] = $self;
+        }
+        if($enemy !== null) {
+            $result['enemy'] = $enemy;
+        }
         $this->ws->push($fd, json_encode($result));
     }
 
