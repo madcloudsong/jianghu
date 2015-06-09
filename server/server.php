@@ -6,7 +6,6 @@
  * and open the template in the editor.
  */
 
-
 class GameServer {
 
     const cmd_name = 1;
@@ -17,16 +16,17 @@ class GameServer {
     const cmd_reborn = 6;
     const cmd_msg = 7;
     const cmd_list = 8;
+    const cmd_system = 9;
+    const cmd_login = 100;
+    const cmd_register = 101;
+    const cmd_error = 999;
 
     public $ws;
     public $redis;
-    public $redis_pub;
-    public $redis_data;
-    public $fd_array = array();
-    const SUB_PUB_KEY = 'sub_pub_key';
-    
     private $temp;
     private $has_sub = false;
+
+    const NAME_GAME = 'JIANGHU';
 
     public function __construct() {
         $this->ws = new swoole_websocket_server("0.0.0.0", 9502);
@@ -36,7 +36,7 @@ class GameServer {
             'daemonize' => false,
             'max_request' => 10000,
             'dispatch_mode' => 2,
-            'debug_mode'=> 1
+            'debug_mode' => 1
         ));
         $this->ws->on('open', array($this, 'onOpen'));
         $this->ws->on('message', array($this, 'onMessage'));
@@ -46,23 +46,15 @@ class GameServer {
         ini_set('default_socket_timeout', -1);
         $this->redis = new redis();
         $this->redis->connect('127.0.0.1', 6379);
-        $this->redis_pub = new redis();
-        $this->redis_pub->connect('127.0.0.1', 6379);
-        $this->redis_data = new redis();
-        $this->redis_data->connect('127.0.0.1', 6379);
         $this->ws->start();
     }
-    
+
     public function onOpen($ws, $request) {
         echo "hello, " . $request->fd . " welcome\n";
-        if(!$this->has_sub && !$ws->taskworker) {
-            $this->sub();
-        }
-        $this->fd_array[$request->fd] = 1;
     }
 
     public function onMessage($ws, $frame) {
-        echo 'wid: '.$ws->worker_id." Received message: {$frame->data}\n";
+        echo 'wid: ' . $ws->worker_id . " Received message: {$frame->data}\n";
         $data = json_decode($frame->data, true);
         switch ($data['cmd']) {
             case self::cmd_name:$this->set_name($frame->fd, $data);
@@ -71,57 +63,222 @@ class GameServer {
                 break;
             case self::cmd_msg:
                 break;
+            case self::cmd_login:
+                $this->login($frame->fd, $data);
+                break;
+            case self::cmd_register:
+                $this->register($frame->fd, $data);
+                break;
             default: $ws->push($frame->fd, json_encode(array('r' => 1, 'msg' => 'unknown cmd')));
         }
     }
 
     public function onClose($ws, $fd) {
-        echo "client {$fd} closed\n";
-        unset($this->fd_array[$fd]);
-    }
-    
-    public function onTask($ws, $task_id, $from_id, $data){
-        echo $task_id."|".$from_id."|".var_export($data,true) . "\n";
-        $this->redis->subscribe(array(self::SUB_PUB_KEY), array($this, 'onSub'));
-        return $this->temp;
-    }
-    
-    public function onSub($redis, $chan, $msg){
-        $redis->unsubscribe();
-        $this->temp = $msg;
-        echo 'onsub' . $chan . '|' . $msg . "\n";
+        $key_fd = $this->key_fd_id();
+        $userid = $this->redis->hGet($key_fd, $fd);
+        $key_id = $this->key_id_fd_skey($userid);
+        $username = $this->redis->hGet($key_id, 'name');
+        $this->redis->delete($key_fd);
+        $this->redis->delete($key_id);
+        $this->log("client {$fd} closed\n");
+        $this->send_system_msg("$username has gone");
     }
 
-    public function onFinish($ws, $task_id, $data){
-        echo 'wid : '. $ws->worker_id . $task_id."|".var_export($data,true) . "\n";
-        $this->sub();
-        foreach($this->fd_array as $fd => $value){ 
-            $ws->push($fd, $data);
+    public function send_system_msg($msg, $all = 1, $fd = 0) {
+        $data = array(
+            'r' => 0,
+            'msg' => '',
+            'cmd' => self::cmd_system,
+            'name' => self::NAME_GAME,
+            'chat' => $msg,
+            'time' => date('H:i:s'),
+        );
+
+        if ($all) {
+            $this->broadcast(json_encode($data));
+            $this->log('send_system_msg all: ' . $msg, $fd);
+        } else {
+            $this->ws->push($fd, json_encode($data));
+            $this->log('send_system_msg single: ' . $msg, $fd);
         }
+        
     }
 
-    public function sub() {
-        $wid = $this->ws->worker_id;
-        $this->ws->task($wid);
+    public function onTask($ws, $task_id, $from_id, $data) {
+        if ($data['type'] == 1) {
+            $key_fd = $this->key_fd_id();
+            $fds = $this->redis->hKeys($key_fd);
+            foreach ($fds as $fd) {
+                $ws->push($fd, $data['data']);
+            }
+        }
+        echo $task_id . "|" . $from_id . "|" . var_export($data, true) . "\n";
+        return "taskid = $task_id; fromid= $from_id " . ' done|' . var_export($data, true);
     }
 
-    protected function user_key($name) {
-        return 'user-' . $name;
+    public function onFinish($ws, $task_id, $data) {
+        $this->log("wid={$ws->worker_id} , taskid=$task_id" . $data);
     }
 
-    public function set_name($fd, $data) {
-        $name = $data['name'];
-        $key = $this->user_key($name);
+    public function login($fd, $data) {
+        $userid = $data['userid'];
+        $password = $data['password'];
+        $key_user = $this->key_user($userid);
+        $user_info = $this->redis->hGetAll($key_user);
         $result = array(
             'r' => 0,
             'msg' => '',
-            'cmd' => self::cmd_name,
-            'name' => $name,
+            'cmd' => self::cmd_login,
         );
+        if (empty($user_info)) {
+            $this->log("userid not exist/user info empty error: userid=$userid", $fd);
+            $result['r'] = 4;
+            $result['msg'] = 'login failed: userid not exist';
+        } else {
+            if ($user_info['password'] == md5($password)) {
+                $key_skey = $this->key_id_fd_skey($userid);
+                $login_info = $this->redis->hGetAll($key_skey);
+                if (!empty($login_info)) {
+                    $result['r'] = 2;
+                    $result['msg'] = 'login failed: already login!';
+                    $this->log("login failed: already login! userid=$userid", $fd);
+                } else {
+                    $this->log("login success: userid=$userid", $fd);
+                    $result['userid'] = $user_info['userid'];
+                    $skey = md5($userid . rand(1, 99999));
+                    $result['skey'] = $skey;
+                    $this->redis->hMset($key_skey, array('skey' => $skey, 'fd' => $fd));
+                    if (isset($user_info['name'])) {
+                        $result['name'] = $user_info['name'];
+                        $result['self'] = array(
+                            'hp' => $user_info['hp'],
+                            'max_hp' => $user_info['max_hp'],
+                            'mp' => $user_info['mp'],
+                            'max_mp' => $user_info['max_mp'],
+                            'win' => $user_info['win'],
+                            'lose' => $user_info['lose'],
+                        );
+                    }
+                }
+            } else {
+                $result['r'] = 1;
+                $result['msg'] = 'login failed: password wrong!';
+                $this->log("login failed: password wrong: userid=$userid", $fd);
+            }
+        }
+
         $this->ws->push($fd, json_encode($result));
     }
 
+    public function register($fd, $data) {
+        $userid = $data['userid'];
+        $password = $data['password'];
+        $key_user = $this->key_user($userid);
+        $user_info = $this->redis->hGetAll($key_user);
+        $result = array(
+            'r' => 0,
+            'msg' => '',
+            'cmd' => self::cmd_register,
+        );
+        if (!empty($user_info)) {
+            $this->log("regiseter failed, userid exist: userid=$userid", $fd);
+            $result['r'] = 1;
+            $result['msg'] = 'regiseter failed: userid exist!';
+        } else {
+            $key_skey = $this->key_id_fd_skey($userid);
+            $password = md5($password);
+            $skey = md5($userid . rand(1, 99999));
+            $this->redis->hMset($key_skey, array('skey' => $skey, 'fd' => $fd));
+            $this->redis->hMset($key_user, array('userid' => $userid, 'password' => $password));
+            $result['userid'] = $userid;
+            $result['skey'] = $skey;
+            $this->log("regiseter success: userid=$userid", $fd);
+        }
+
+        $this->ws->push($fd, json_encode($result));
+    }
+
+    protected function key_fd_id() {
+        return 'key_fd_id';
+    }
+
+    protected function key_id_fd_skey($userid) {
+        return 'key_id_fd_skey-' . $userid;
+    }
+
+    protected function key_user($userid) {
+        return 'key_user-' . $userid;
+    }
+
+    public function check_login($fd, $data) {
+        $userid = $data['userid'];
+        $skey = $data['skey'];
+        $key_skey = $this->key_id_fd_skey($userid);
+        $login_info = $this->redis->hGetAll($key_skey);
+        if (empty($login_info)) {
+            $result = array(
+                'r' => 1,
+                'msg' => 'not login or login expired',
+                'cmd' => self::cmd_error,
+            );
+            $this->log('userid: ' . $userid . ' | skey = ' . $skey . ' login expired', $fd);
+            $this->ws->push($fd, json_encode($result));
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    public function set_name($fd, $data) {
+        if (!$this->check_login($fd, $data)) {
+            return;
+        }
+        $name = $data['name'];
+        $userid = $data['userid'];
+        $key_user = $this->key_user($userid);
+        $user_info = $this->redis->hGetAll($key_user);
+        if (!isset($user_info['name'])) {
+            $this->redis->hSet($key_user, 'name', $name);
+            $this->log('set name : ' . $name, $fd);
+            $result = array(
+                'r' => 0,
+                'msg' => '',
+                'cmd' => self::cmd_name,
+                'name' => $name,
+            );
+            $attr = $this->init_attr();
+            $this->log('set name and init attr: ' . var_export($attr, true), $fd);
+            $this->redis->hMset($key_user, $attr);
+            $result['self'] = $attr;
+            $this->ws->push($fd, json_encode($result));
+        } else {
+            $this->log('set name twice', $fd);
+        }
+    }
+
+    public function init_attr() {
+        $max_hp = rand(8, 11);
+        $max_mp = rand(8, 11);
+        $win = 0;
+        $lose = 0;
+        return array(
+            'hp' => $max_hp,
+            'max_hp' => $max_hp,
+            'mp' => $max_mp,
+            'max_mp' => $max_mp,
+            'win' => $win,
+            'lose' => $lose,
+        );
+    }
+
+    public function log($msg, $fd = 0) {
+        echo '[' . date('Ymd H:i:s') . '] fd:' . $fd . ' | ' . $msg . "\n";
+    }
+
     public function chat($fd, $data) {
+        if (!$this->check_login($fd, $data)) {
+            return;
+        }
         $chat = $data['chat'];
         $result = array(
             'r' => 0,
@@ -131,10 +288,17 @@ class GameServer {
             'chat' => $chat,
             'time' => date('H:i:s'),
         );
-        $this->redis_pub->publish(self::SUB_PUB_KEY, json_encode($result));
+        $this->broadcast(json_encode($result));
+    }
+
+    public function broadcast($data) {
+        $this->ws->task(array('type' => 1, 'data' => $data));
     }
 
     public function send_msg($fd, $msg, $self, $enemy) {
+        if (!$this->check_login($fd, $data)) {
+            return;
+        }
         $result = array(
             'r' => 0,
             'msg' => '',
