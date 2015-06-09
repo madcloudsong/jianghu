@@ -55,6 +55,7 @@ class GameServer {
     }
 
     public function onShutdown($ws) {
+        $this->log('server shutdown ');
         $key_fd = $this->key_fd_id();
         $userids = $this->redis->hVals($key_fd);
         foreach ($userids as $userid) {
