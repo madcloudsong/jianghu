@@ -89,7 +89,7 @@ class GameServer {
         $userid = $this->redis->hGet($key_fd, $fd);
         $key_id = $this->key_id_fd_skey($userid);
         $username = $this->redis->hGet($key_id, 'name');
-        $this->redis->delete($key_fd);
+        $this->redis->hDel($key_fd, $fd);
         $this->redis->delete($key_id);
         $this->log("client {$fd} closed\n");
         $this->send_system_msg("$username has gone");
@@ -295,7 +295,7 @@ class GameServer {
     }
 
     public function log($msg, $fd = 0) {
-        echo '[' . date('Ymd H:i:s') . '] ' . $this->ws->worker_id . 'fd:' . $fd . ' | ' . $msg . "\n";
+        echo '[' . date('Ymd H:i:s') . '] wid:' . $this->ws->worker_id . ' | fd:' . $fd . ' | ' . $msg . "\n";
     }
 
     public function chat($fd, $data) {
