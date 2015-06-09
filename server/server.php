@@ -98,6 +98,15 @@ class GameServer {
             case self::cmd_register:
                 $this->register($frame->fd, $data);
                 break;
+            case self::cmd_pvp_list:
+                $this->cmd_pvp_list($frame->fd, $data);
+                break;
+            case self::cmd_pvp:
+                $this->cmd_pvp($frame->fd, $data);
+                break;
+            case self::cmd_pvp_ready:
+                $this->cmd_pvp_ready($frame->fd, $data);
+                break;
             default: $ws->push($frame->fd, json_encode(array('r' => 1, 'msg' => 'unknown cmd')));
         }
     }
@@ -302,12 +311,16 @@ class GameServer {
             $this->log('set name and init attr: ' . var_export($attr, true), $fd);
             $this->redis->hMset($key_user, $attr);
             $result['self'] = $attr;
-            $this->ws->push($fd, json_encode($result));
+            $this->pushto($fd, $result);
             $this->send_system_msg($name . ' come in');
             $this->send_welcome($fd, $name);
         } else {
             $this->log('set name twice', $fd);
         }
+    }
+    
+    protected function pushto($fd, $data) {
+        $this->ws->push($fd, json_encode($data));
     }
 
     protected function send_welcome($fd, $name) {
@@ -403,7 +416,38 @@ class GameServer {
     const TIMEOUT = 10;
     const WAR_TIME_LIMIT = 300;
 
+    public function cmd_pvp_list($fd, $data) {
+        if (!$this->check_login($fd, $data)) {
+            return;
+        }
+        $userid = $data['userid'];
+        $list = $this->get_pvp_list($userid);
+        $result = array(
+            'r' => 0,
+            'msg' => '',
+            'cmd' => self::cmd_pvp_list,
+            'list' => $list,
+        );
+        $this->pushto($fd, $result);
+    }
     
+    public function cmd_pvp($fd, $data) {
+        if (!$this->check_login($fd, $data)) {
+            return;
+        }
+        $userid = $data['userid'];
+        $did = $data['did'];
+        $this->pvp($userid, $did);
+    }
+    
+    public function cmd_pvp_ready($fd, $data) {
+        if (!$this->check_login($fd, $data)) {
+            return;
+        }
+        $userid = $data['userid'];
+        $aid = $data['aid'];
+        $this->pvp_ready($aid, $userid);
+    }
 
     protected function get_fd_by_id($userid) {
         $key = Key::key_id_fd_skey($userid);
@@ -411,13 +455,16 @@ class GameServer {
         return $fd;
     }
 
-    protected function get_pvp_list() {
+    protected function get_pvp_list($current_id) {
         $key_fd = Key::key_fd_id();
         $userids = $this->redis->hVals($key_fd);
         $userids = shuffle($userids);
         $list = array();
         $count = 0;
         foreach ($userids as $userid) {
+            if($userid == $current_id){
+                continue;
+            }
             $key_roomid = Key::key_room_id($userid);
             $roomid = $this->redis->get($key_roomid);
             if ($roomid === false) { // not in war
@@ -429,6 +476,7 @@ class GameServer {
                 }
             }
         }
+        $this->log('userid:'.$current_id . ' | get_pvp_list: '.var_export($list, true));
         return $list;
     }
 
@@ -492,10 +540,10 @@ class GameServer {
         $this->set_roomid($did, $roomid);
 
         $this->notice_war_wait($aid, $did);
-        $this->notice_defence($aid, $did);
+        $this->notice_war_defence($aid, $did);
     }
 
-    public function notice_defence($aid, $did) {
+    public function notice_war_defence($aid, $did) {
         
     }
 

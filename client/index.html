@@ -385,7 +385,12 @@ and open the template in the editor.
                 }
 
                 function pvp_list(data) {
-
+                    if(data.r == 0) {
+                        var list = data.list;
+                        for(i in list) {
+                            console.log(list[i]);
+                        }
+                    }
                 }
 
                 //defence to get ready
@@ -397,14 +402,6 @@ and open the template in the editor.
                 function pvp() {
                     send_with_skey(data);
                 }
-
-                //get pvp list
-                function get_pvp_list() {
-                    send_with_skey(data);
-                }
-
-
-
 
                 $(".btn-send").click(function () {
                     var text = $("#chat_input").val();
@@ -419,6 +416,11 @@ and open the template in the editor.
 
                 $(".btn-clear").click(function () {
                     $("#chat_history").children().remove();
+                });
+                
+                 $(".btn-pvp").click(function(){
+                     var data = {cmd: cmd_pvp_list};
+                    send_with_skey(data);
                 });
 
                 $(".btn-login").click(function () {
@@ -456,6 +458,8 @@ and open the template in the editor.
                     var data = {cmd: cmd_register, userid: userid, password: password};
                     ws.send(JSON.stringify(data));
                 });
+                
+               
             });
         </script>
     </body>
