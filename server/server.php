@@ -17,6 +17,17 @@ class GameServer {
     const cmd_msg = 7;
     const cmd_list = 8;
     const cmd_system = 9;
+    
+    const cmd_war_defence = 10;
+    const cmd_war_wait = 11;
+    const cmd_war_start = 12;
+    const cmd_pvp_ready = 13;
+    const cmd_pvp = 14;
+    const cmd_pvp_list = 15;
+    const cmd_pve = 16;
+    const cmd_pve_list = 17;
+    const cmd_ready_timeout = 18;
+    
     const cmd_login = 100;
     const cmd_register = 101;
     const cmd_error = 999;
@@ -44,10 +55,18 @@ class GameServer {
         $this->ws->on('Task', array($this, 'onTask'));
         $this->ws->on('Finish', array($this, 'onFinish'));
         $this->ws->on('Shutdown', array($this, 'onShutdown'));
+        $this->ws->on('WorkerStart', array($this, 'onWorkerStart'));
         ini_set('default_socket_timeout', -1);
         $this->redis = new redis();
         $this->redis->connect('127.0.0.1', 6379);
+        $this->log('server running');
         $this->ws->start();
+    }
+
+    public function onWorkerStart($serv, $worker_id) {
+        if ($worker_id == 0) {
+            $serv->tick(1000, array($this, 'onTimer'));
+        }
     }
 
     public function onOpen($ws, $request) {
@@ -238,7 +257,16 @@ class GameServer {
             $this->log('userid: ' . $userid . ' | skey = ' . $skey . ' login expired', $fd);
             $this->ws->push($fd, json_encode($result));
             return false;
-        } else {
+        } else if($login_info['skey'] != $skey){
+            $result = array(
+                'r' => 1,
+                'msg' => 'login in other place or login expired',
+                'cmd' => self::cmd_error,
+            );
+            $this->log('userid: ' . $userid . ' | skey = ' . $skey . ' login expired', $fd);
+            $this->ws->push($fd, json_encode($result));
+            return false;
+        }else{
             return true;
         }
     }
@@ -331,6 +359,21 @@ class GameServer {
         $key_user = $this->key_user($userid);
         return $this->redis->hGetAll($key_user);
     }
+    
+    public function get_user_war_info($userid) {
+        $key_user = $this->key_user($userid);
+        $info = $this->redis->hGetAll($key_user);
+        return array(
+            'userid' => $info['userid'],
+            'name' => $info['name'],
+            'hp' => $info['hp'],
+            'max_hp' => $info['max_hp'],
+            'mp' => $info['mp'],
+            'max_mp' => $info['max_mp'],
+            'win' => $info['win'],
+            'lose' => $info['lose'],
+        );
+    }
 
     public function broadcast($data) {
         $this->ws->task(array('type' => 1, 'data' => $data));
@@ -351,6 +394,258 @@ class GameServer {
             $result['enemy'] = $enemy;
         }
         $this->ws->push($fd, json_encode($result));
+    }
+
+    ////////////
+    const WAR_STATE_READY = 1;
+    const WAR_STATE_RUN = 2;
+    const WAR_STATE_END = 3;
+    const TIMEOUT = 10;
+    const WAR_TIME_LIMIT = 300;
+
+    protected function key_room($roomid) {
+        return 'key_room-' . $roomid;
+    }
+
+    protected function key_room_list() {
+        return 'key_room_list';
+    }
+
+    protected function key_room_id($userid) {
+        return 'key_room_id' . $userid;
+    }
+
+    protected function get_fd_by_id($userid) {
+        $key = $this->key_id_fd_skey($userid);
+        $fd = $this->redis->hGet($key, 'fd');
+        return $fd;
+    }
+    
+    protected function get_pvp_list() {
+        $key_fd = $this->key_fd_id();
+        $userids = $this->redis->hVals($key_fd);
+        $userids = shuffle($userids);
+        $list = array();
+        $count = 0;
+        foreach($userids as $userid) {
+            $key_roomid = $this->key_room_id($userid);
+            $roomid = $this->redis->get($key_roomid);
+            if($roomid === false) { // not in war
+                $war_info = $this->get_user_war_info($userid);
+                $list[$userid] = $war_info;
+                $count++;
+                if($count > 10) {
+                    break;
+                }
+            }
+        }
+        return $list;
+    }
+    
+    protected function gen_roomid() {
+        return md5(time() . rand(1, 9999));
+    }
+    
+    protected function set_roomid($userid, $roomid){
+        $key = $this->key_room_id($userid);
+        $this->redis->set($key, $roomid);
+    }
+    
+    protected function get_roomid($userid){
+        $key = $this->key_room_id($userid);
+        return $this->redis->get($key);
+    }
+    
+    protected function in_war($userid){
+        $key = $this->key_room_id($userid);
+        $r = $this->redis->get($key);
+        return $r !== false;
+    }
+    
+    protected function is_online($userid) {
+        $key = $this->key_id_fd_skey($userid);
+        $r = $this->redis->hGet($key, 'fd');
+        return $r !== false;
+    }
+    
+    public function pvp($aid, $did) {
+        //error check
+        if(!$this->is_online($did)) {
+            $this->log("userid: $did is not online");
+            return;
+        }
+        if($this->in_war($aid)) {
+            $this->log("userid: $did is in war");
+            return;
+        }
+        if($this->in_war($did)) {
+            $this->log("userid: $did is in war");
+            return;
+        }
+        ///////
+        $roomid = $this->gen_roomid();
+        
+        //set room info
+        $key_room = $this->key_room($roomid);
+        $this->redis->hMset($key_room, array(
+            'aid' => $aid,
+            'did' => $did,
+            'time' => time(),
+        ));
+        
+        //set room list
+        $key_roomlist = $this->key_room_list();
+        $this->redis->hSet($key_roomlist, $roomid, self::WAR_STATE_READY);
+        
+        //set user roomid
+        $this->set_roomid($aid, $roomid);
+        $this->set_roomid($did, $roomid);
+        
+        $this->notice_war_wait($aid, $did);
+        $this->notice_defence($aid, $did);
+    }
+    
+    public function notice_defence($aid, $did) {
+        
+    }
+    
+    public function notice_war_wait($aid, $did) {
+        
+    }
+    
+    public function notice_war_start($userid, $enemy_info) {
+        
+    }
+    
+    public function get_war_enemyid($userid) {
+        $roomid = $this->get_roomid($userid);
+        if($roomid !== false) {
+            $key = $this->key_room($roomid);
+            $did = $this->redis->hGet($key, 'did');
+            if($did !== false) {
+                return $did;
+            }
+        }
+        return false;
+    }
+    
+    public function get_war_npcid($userid) {
+        $roomid = $this->get_roomid($userid);
+        if($roomid !== false) {
+            $key = $this->key_room($roomid);
+            $did = $this->redis->hGet($key, 'did');
+            if($did !== false && $did == 0) {
+                return $this->redis->hGet($key, 'npcid');
+            }
+        }
+        return false;
+    }
+    
+    public function pvp_ready($aid, $did) {
+        $a_roomid = $this->get_roomid($aid);
+        $d_roomid = $this->get_roomid($did);
+        if($a_roomid === false || $d_roomid === false || $a_roomid != $d_roomid) {
+            $this->log("error, pvp_ready: aroomid: $a_roomid, droomid: $d_roomid");
+            return;
+        }
+        
+        $roomid = $a_roomid;
+        $key_roomlist = $this->key_room_list();
+        $state = $this->redis->hGet($key_roomlist, $roomid);
+        if($state === false) {
+            $this->log("error, pvp_ready: state: false");
+            return;
+        }
+        if($state == self::WAR_STATE_READY) {
+            $this->redis->hSet($key_roomlist, self::WAR_STATE_RUN);
+            $ainfo = $this->get_user_war_info($aid);
+            $dinfo = $this->get_user_war_info($did);
+            $this->notice_war_start($aid, $dinfo);
+            $this->notice_war_start($did, $ainfo);
+        }else{
+            $this->log("error, pvp_ready: state: $state");
+            return;
+        }
+    }
+
+
+    public function pve($aid, $npcid) {
+        $key_a = $k;
+    }
+
+    /*
+     * room info
+     * 
+     * time
+     * 
+     * aid
+     * 
+     * did
+     * npcid
+     * 
+     * 
+     */
+
+    /**
+     * ai
+     */
+    public function onTimer() {
+        $key_list = $this->key_room_list();
+        $room_list = $this->redis->hGetAll($key_list);
+        $this->log('room_list | ' . var_export($room_list, true));
+        $current_time = time();
+        foreach ($room_list as $roomid => $state) {
+            $key_room = $this->key_room($roomid);
+            $room_info = $this->redis->hGetAll($key_room);
+            $aid = $room_info['aid'];
+            $did = $room_info['did'];
+            if ($state == self::WAR_STATE_READY) {
+                $time = $room_info['time'];
+                if ($time + self::TIMEOUT < $current_time) {//ready timeout
+                    $this->ready_timeout($aid);
+                    $this->ready_timeout($did);
+
+                    $this->redis->hDel($key_list, $roomid);
+                    $this->clear_user_war_state($aid);
+                    $this->clear_user_war_state($did);
+                    $this->redis->delete($key_room);
+                    $this->log("remove timeout roomid: $roomid, aid: $aid, did: $did");
+                } else if ($time + self::WAR_TIME_LIMIT < $current_time) {
+                    //todo check winner
+                    $this->redis->hDel($key_list, $roomid);
+
+                    $this->clear_user_war_state($aid);
+                    $this->clear_user_war_state($did);
+                    $this->redis->delete($key_room);
+                    $this->log("WAR_TIME_LIMIT timeout roomid: $roomid, aid: $aid, did: $did");
+                }
+            } else if ($state == self::WAR_STATE_RUN) {
+                if ($did == 0) { // pve
+                    $npcid = $room_info['npcid'];
+                    $npc_info = array(
+                        'name' => 'npc',
+                        'max_hp' => 11,
+                        'hp' => 11,
+                        'max_mp' => 11,
+                        'mp' => 11,
+                        'win' => 11,
+                        'lose' => 11,
+                    );
+                    //ai
+                } else { // pvp
+                }
+            } else {//end
+            }
+        }
+    }
+
+    protected function clear_user_war_state($userid) {
+        $key = $this->key_room_id($userid);
+        $this->redis->delete($key);
+    }
+
+    protected function ready_timeout($userid) {
+        
     }
 
 }

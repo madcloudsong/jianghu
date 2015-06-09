@@ -151,6 +151,15 @@ and open the template in the editor.
                         cmd_msg = 7,
                         cmd_list = 8,
                         cmd_system = 9,
+                        cmd_war_defence = 10,
+                        cmd_war_wait = 11,
+                        cmd_war_start = 12,
+                        cmd_pvp_ready = 13,
+                        cmd_pvp = 14,
+                        cmd_pvp_list = 15,
+                        cmd_pve = 16,
+                        cmd_pve_list = 17,
+                        cmd_ready_timeout = 18,
                         cmd_login = 100,
                         cmd_register = 101,
                         cmd_error = 999;
@@ -213,9 +222,26 @@ and open the template in the editor.
                             break;
                         case cmd_error:
                             alert(data.msg);
+                            location.reload();
                             break;
                         case cmd_system:
                             add_system(data);
+                            break;
+                        case cmd_war_defence:
+                            war_defence(data);
+                            break;
+                        case cmd_war_wait:
+                            war_wait(data);
+                            break;
+                        case cmd_war_start:
+                            war_start(data);
+                            break;
+                        case cmd_pvp_ready:
+                            break;
+                        case cmd_pvp:
+                            break;
+                        case cmd_pvp_list:
+                            pvp_list(data);
                             break;
                         default:
                             console.log('unknown cmd');
@@ -229,6 +255,8 @@ and open the template in the editor.
                 {
                     console.log("WebSocketError!");
                 };
+
+
 
                 function send_with_skey(data) {
                     data.userid = userid;
@@ -251,14 +279,14 @@ and open the template in the editor.
                 function add_msg(data) {
                     var time = data.time;
                     var name = data.name;
-                    $("#msg").append('<li>' + name + '(' + time + ') : <span>' + data.msg + '</span></li>');
+                    $("#msg").append('<li>[' + name + '] (' + time + ') : <span>' + data.msg + '</span></li>');
                 }
 
                 function add_system(data) {
                     var name = data.name;
                     var chat = data.chat;
                     var time = data.time;
-                    $("#chat_history").prepend('<li><span class="orange">[SYSTEM MSG]</span> (' + time + ') : <span class="green">' + html_encode(chat) + '</span></li>');
+                    $("#chat_history").prepend('<li>[<span class="orange">SYSTEM MSG</span>] (' + time + ') : <span class="green">' + html_encode(chat) + '</span></li>');
                 }
 
 
@@ -343,6 +371,38 @@ and open the template in the editor.
                         alert(data.msg);
                     }
                 }
+
+                function war_defence(data) {
+
+                }
+
+                function war_wait(data) {
+
+                }
+
+                function war_start(data) {
+
+                }
+
+                function pvp_list(data) {
+
+                }
+
+                //defence to get ready
+                function pvp_ready() {
+                    send_with_skey(data);
+                }
+
+                //choose one to pvp
+                function pvp() {
+                    send_with_skey(data);
+                }
+
+                //get pvp list
+                function get_pvp_list() {
+                    send_with_skey(data);
+                }
+
 
 
 
