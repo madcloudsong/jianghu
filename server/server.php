@@ -118,8 +118,10 @@ class GameServer {
         if ($data['type'] == 1) {
             $key_fd = $this->key_fd_id();
             $fds = $this->redis->hKeys($key_fd);
+            $this->log("fromid: $from_id , send to fds: " . var_export($fds, true));
             foreach ($fds as $fd) {
                 $ws->push($fd, $data['data']);
+                $this->log("send to fd: $fd , " . $data['data']);
             }
         }
         echo $task_id . "|" . $from_id . "|" . var_export($data, true) . "\n";
@@ -293,7 +295,7 @@ class GameServer {
     }
 
     public function log($msg, $fd = 0) {
-        echo '[' . date('Ymd H:i:s') . '] fd:' . $fd . ' | ' . $msg . "\n";
+        echo '[' . date('Ymd H:i:s') . '] ' . $this->ws->worker_id . 'fd:' . $fd . ' | ' . $msg . "\n";
     }
 
     public function chat($fd, $data) {
