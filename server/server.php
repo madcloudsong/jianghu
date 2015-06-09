@@ -114,7 +114,7 @@ class GameServer {
             $this->redis->delete($key_id);
             $this->log("client {$fd} closed\n");
             $this->send_system_msg("$username has gone");
-        }else{
+        } else {
             $this->log('a no fd user has been removed');
         }
     }
@@ -602,7 +602,9 @@ class GameServer {
     public function onTimer() {
         $key_list = $this->key_room_list();
         $room_list = $this->redis->hGetAll($key_list);
-        $this->log('room_list | ' . var_export($room_list, true));
+        if (!empty($room_list)) {
+            $this->log('room_list | ' . var_export($room_list, true));
+        }
         $current_time = time();
         foreach ($room_list as $roomid => $state) {
             $key_room = $this->key_room($roomid);
