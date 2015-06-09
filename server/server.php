@@ -43,6 +43,7 @@ class GameServer {
         $this->ws->on('close', array($this, 'onClose'));
         $this->ws->on('Task', array($this, 'onTask'));
         $this->ws->on('Finish', array($this, 'onFinish'));
+        $this->ws->on('Shutdown', array($this, 'onShutdown'));
         ini_set('default_socket_timeout', -1);
         $this->redis = new redis();
         $this->redis->connect('127.0.0.1', 6379);
@@ -51,6 +52,15 @@ class GameServer {
 
     public function onOpen($ws, $request) {
         echo "hello, " . $request->fd . " welcome\n";
+    }
+
+    public function onShutdown($ws) {
+        $key_fd = $this->key_fd_id();
+        $userids = $this->redis->hVals($key_fd);
+        foreach ($userids as $userid) {
+            $key = $this->key_id_fd_skey($userid);
+            $this->redis->delete($key);
+        }
     }
 
     public function onMessage($ws, $frame) {
@@ -304,7 +314,7 @@ class GameServer {
         );
         $this->broadcast(json_encode($result));
     }
-    
+
     public function get_user_info($userid) {
         $key_user = $this->key_user($userid);
         return $this->redis->hGetAll($key_user);
