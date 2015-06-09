@@ -17,7 +17,6 @@ class GameServer {
     const cmd_msg = 7;
     const cmd_list = 8;
     const cmd_system = 9;
-    
     const cmd_war_defence = 10;
     const cmd_war_wait = 11;
     const cmd_war_start = 12;
@@ -27,7 +26,6 @@ class GameServer {
     const cmd_pve = 16;
     const cmd_pve_list = 17;
     const cmd_ready_timeout = 18;
-    
     const cmd_login = 100;
     const cmd_register = 101;
     const cmd_error = 999;
@@ -106,13 +104,17 @@ class GameServer {
     public function onClose($ws, $fd) {
         $key_fd = $this->key_fd_id();
         $userid = $this->redis->hGet($key_fd, $fd);
-        $key_id = $this->key_id_fd_skey($userid);
-        $key_user = $this->key_user($userid);
-        $username = $this->redis->hGet($key_user, 'name');
-        $this->redis->hDel($key_fd, $fd);
-        $this->redis->delete($key_id);
-        $this->log("client {$fd} closed\n");
-        $this->send_system_msg("$username has gone");
+        if ($userid !== false) {
+            $key_id = $this->key_id_fd_skey($userid);
+            $key_user = $this->key_user($userid);
+            $username = $this->redis->hGet($key_user, 'name');
+            $this->redis->hDel($key_fd, $fd);
+            $this->redis->delete($key_id);
+            $this->log("client {$fd} closed\n");
+            $this->send_system_msg("$username has gone");
+        }else{
+            $this->log('a no fd user has been removed');
+        }
     }
 
     public function send_system_msg($msg, $all = 1, $fd = 0) {
@@ -172,6 +174,13 @@ class GameServer {
                 $login_info = $this->redis->hGetAll($key_skey);
                 if (!empty($login_info)) {
                     $this->log("login failed: already login! userid=$userid", $fd);
+                    $old_fd = $login_info['fd'];
+                    $key_fd = $this->key_fd_id();
+                    $old_userid = $this->redis->hGet($key_fd, $old_fd);
+                    if ($old_fd !== false && $old_userid == $userid) {
+                        $this->redis->hDel($key_fd, $old_fd);
+                        $this->ws->close($old_fd);
+                    }
                 }
                 $this->log("login success: userid=$userid", $fd);
                 $result['userid'] = $user_info['userid'];
@@ -257,7 +266,7 @@ class GameServer {
             $this->log('userid: ' . $userid . ' | skey = ' . $skey . ' login expired', $fd);
             $this->ws->push($fd, json_encode($result));
             return false;
-        } else if($login_info['skey'] != $skey){
+        } else if ($login_info['skey'] != $skey) {
             $result = array(
                 'r' => 1,
                 'msg' => 'login in other place or login expired',
@@ -266,7 +275,7 @@ class GameServer {
             $this->log('userid: ' . $userid . ' | skey = ' . $skey . ' login expired', $fd);
             $this->ws->push($fd, json_encode($result));
             return false;
-        }else{
+        } else {
             return true;
         }
     }
@@ -359,7 +368,7 @@ class GameServer {
         $key_user = $this->key_user($userid);
         return $this->redis->hGetAll($key_user);
     }
-    
+
     public function get_user_war_info($userid) {
         $key_user = $this->key_user($userid);
         $info = $this->redis->hGetAll($key_user);
@@ -420,71 +429,71 @@ class GameServer {
         $fd = $this->redis->hGet($key, 'fd');
         return $fd;
     }
-    
+
     protected function get_pvp_list() {
         $key_fd = $this->key_fd_id();
         $userids = $this->redis->hVals($key_fd);
         $userids = shuffle($userids);
         $list = array();
         $count = 0;
-        foreach($userids as $userid) {
+        foreach ($userids as $userid) {
             $key_roomid = $this->key_room_id($userid);
             $roomid = $this->redis->get($key_roomid);
-            if($roomid === false) { // not in war
+            if ($roomid === false) { // not in war
                 $war_info = $this->get_user_war_info($userid);
                 $list[$userid] = $war_info;
                 $count++;
-                if($count > 10) {
+                if ($count > 10) {
                     break;
                 }
             }
         }
         return $list;
     }
-    
+
     protected function gen_roomid() {
         return md5(time() . rand(1, 9999));
     }
-    
-    protected function set_roomid($userid, $roomid){
+
+    protected function set_roomid($userid, $roomid) {
         $key = $this->key_room_id($userid);
         $this->redis->set($key, $roomid);
     }
-    
-    protected function get_roomid($userid){
+
+    protected function get_roomid($userid) {
         $key = $this->key_room_id($userid);
         return $this->redis->get($key);
     }
-    
-    protected function in_war($userid){
+
+    protected function in_war($userid) {
         $key = $this->key_room_id($userid);
         $r = $this->redis->get($key);
         return $r !== false;
     }
-    
+
     protected function is_online($userid) {
         $key = $this->key_id_fd_skey($userid);
         $r = $this->redis->hGet($key, 'fd');
         return $r !== false;
     }
-    
+
     public function pvp($aid, $did) {
         //error check
-        if(!$this->is_online($did)) {
+        if (!$this->is_online($did)) {
             $this->log("userid: $did is not online");
             return;
         }
-        if($this->in_war($aid)) {
+        if ($this->in_war($aid)) {
             $this->log("userid: $did is in war");
             return;
         }
-        if($this->in_war($did)) {
+        if ($this->in_war($did)) {
             $this->log("userid: $did is in war");
             return;
         }
         ///////
         $roomid = $this->gen_roomid();
-        
+
         //set room info
         $key_room = $this->key_room($roomid);
         $this->redis->hMset($key_room, array(
@@ -492,82 +501,81 @@ class GameServer {
             'did' => $did,
             'time' => time(),
         ));
-        
+
         //set room list
         $key_roomlist = $this->key_room_list();
         $this->redis->hSet($key_roomlist, $roomid, self::WAR_STATE_READY);
-        
+
         //set user roomid
         $this->set_roomid($aid, $roomid);
         $this->set_roomid($did, $roomid);
-        
+
         $this->notice_war_wait($aid, $did);
         $this->notice_defence($aid, $did);
     }
-    
+
     public function notice_defence($aid, $did) {
         
     }
-    
+
     public function notice_war_wait($aid, $did) {
         
     }
-    
+
     public function notice_war_start($userid, $enemy_info) {
         
     }
-    
+
     public function get_war_enemyid($userid) {
         $roomid = $this->get_roomid($userid);
-        if($roomid !== false) {
+        if ($roomid !== false) {
             $key = $this->key_room($roomid);
             $did = $this->redis->hGet($key, 'did');
-            if($did !== false) {
+            if ($did !== false) {
                 return $did;
             }
         }
         return false;
     }
-    
+
     public function get_war_npcid($userid) {
         $roomid = $this->get_roomid($userid);
-        if($roomid !== false) {
+        if ($roomid !== false) {
             $key = $this->key_room($roomid);
             $did = $this->redis->hGet($key, 'did');
-            if($did !== false && $did == 0) {
+            if ($did !== false && $did == 0) {
                 return $this->redis->hGet($key, 'npcid');
             }
         }
         return false;
     }
-    
+
     public function pvp_ready($aid, $did) {
         $a_roomid = $this->get_roomid($aid);
         $d_roomid = $this->get_roomid($did);
-        if($a_roomid === false || $d_roomid === false || $a_roomid != $d_roomid) {
+        if ($a_roomid === false || $d_roomid === false || $a_roomid != $d_roomid) {
             $this->log("error, pvp_ready: aroomid: $a_roomid, droomid: $d_roomid");
             return;
         }
-        
+
         $roomid = $a_roomid;
         $key_roomlist = $this->key_room_list();
         $state = $this->redis->hGet($key_roomlist, $roomid);
-        if($state === false) {
+        if ($state === false) {
             $this->log("error, pvp_ready: state: false");
             return;
         }
-        if($state == self::WAR_STATE_READY) {
+        if ($state == self::WAR_STATE_READY) {
             $this->redis->hSet($key_roomlist, self::WAR_STATE_RUN);
             $ainfo = $this->get_user_war_info($aid);
             $dinfo = $this->get_user_war_info($did);
             $this->notice_war_start($aid, $dinfo);
             $this->notice_war_start($did, $ainfo);
-        }else{
+        } else {
             $this->log("error, pvp_ready: state: $state");
             return;
         }
     }
-
 
     public function pve($aid, $npcid) {
         $key_a = $k;
