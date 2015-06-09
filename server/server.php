@@ -5,6 +5,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
+require __DIR__ . '/lib/Key.php';
 
 class GameServer {
 
@@ -32,8 +33,6 @@ class GameServer {
 
     public $ws;
     public $redis;
-    private $temp;
-    private $has_sub = false;
 
     const NAME_GAME = 'JIANGHU';
 
@@ -64,7 +63,7 @@ class GameServer {
     public function onWorkerStart($serv, $worker_id) {
         if ($worker_id == 0) {
             $serv->tick(1000, array($this, 'onTimer'));
-            $key = $this->key_fd_id();
+            $key = Key::key_fd_id();
             $this->redis->delete($key);
         }
     }
@@ -75,10 +74,10 @@ class GameServer {
 
     public function onShutdown($ws) {
         $this->log('server shutdown ');
-        $key_fd = $this->key_fd_id();
+        $key_fd = Key::key_fd_id();
         $userids = $this->redis->hVals($key_fd);
         foreach ($userids as $userid) {
-            $key = $this->key_id_fd_skey($userid);
+            $key = Key::key_id_fd_skey($userid);
             $this->redis->delete($key);
         }
     }
@@ -104,11 +103,11 @@ class GameServer {
     }
 
     public function onClose($ws, $fd) {
-        $key_fd = $this->key_fd_id();
+        $key_fd = Key::key_fd_id();
         $userid = $this->redis->hGet($key_fd, $fd);
         if ($userid !== false) {
-            $key_id = $this->key_id_fd_skey($userid);
-            $key_user = $this->key_user($userid);
+            $key_id = Key::key_id_fd_skey($userid);
+            $key_user = Key::key_user($userid);
             $username = $this->redis->hGet($key_user, 'name');
             $this->redis->hDel($key_fd, $fd);
             $this->redis->delete($key_id);
@@ -140,7 +139,7 @@ class GameServer {
 
     public function onTask($ws, $task_id, $from_id, $data) {
         if ($data['type'] == 1) {
-            $key_fd = $this->key_fd_id();
+            $key_fd = Key::key_fd_id();
             $fds = $this->redis->hKeys($key_fd);
             $this->log("fromid: $from_id , send to fds: " . var_export($fds, true));
             foreach ($fds as $fd) {
@@ -159,7 +158,7 @@ class GameServer {
     public function login($fd, $data) {
         $userid = $data['userid'];
         $password = $data['password'];
-        $key_user = $this->key_user($userid);
+        $key_user = Key::key_user($userid);
         $user_info = $this->redis->hGetAll($key_user);
         $result = array(
             'r' => 0,
@@ -172,12 +171,12 @@ class GameServer {
             $result['msg'] = 'login failed: userid not exist';
         } else {
             if ($user_info['password'] == md5($password)) {
-                $key_skey = $this->key_id_fd_skey($userid);
+                $key_skey = Key::key_id_fd_skey($userid);
                 $login_info = $this->redis->hGetAll($key_skey);
                 if (!empty($login_info)) {
                     $this->log("login failed: already login! userid=$userid", $fd);
                     $old_fd = $login_info['fd'];
-                    $key_fd = $this->key_fd_id();
+                    $key_fd = Key::key_fd_id();
                     $old_userid = $this->redis->hGet($key_fd, $old_fd);
                     if ($old_fd !== false && $old_userid == $userid) {
                         $this->redis->hDel($key_fd, $old_fd);
@@ -216,7 +215,7 @@ class GameServer {
     public function register($fd, $data) {
         $userid = $data['userid'];
         $password = $data['password'];
-        $key_user = $this->key_user($userid);
+        $key_user = Key::key_user($userid);
         $user_info = $this->redis->hGetAll($key_user);
         $result = array(
             'r' => 0,
@@ -228,7 +227,7 @@ class GameServer {
             $result['r'] = 1;
             $result['msg'] = 'regiseter failed: userid exist!';
         } else {
-            $key_skey = $this->key_id_fd_skey($userid);
+            $key_skey = Key::key_id_fd_skey($userid);
             $password = md5($password);
             $skey = md5($userid . rand(1, 99999));
             $this->redis->hMset($key_skey, array('skey' => $skey, 'fd' => $fd));
@@ -242,22 +241,12 @@ class GameServer {
         $this->ws->push($fd, json_encode($result));
     }
 
-    protected function key_fd_id() {
-        return 'key_fd_id';
-    }
-
-    protected function key_id_fd_skey($userid) {
-        return 'key_id_fd_skey-' . $userid;
-    }
-
-    protected function key_user($userid) {
-        return 'key_user-' . $userid;
-    }
+    
 
     public function check_login($fd, $data) {
         $userid = $data['userid'];
         $skey = $data['skey'];
-        $key_skey = $this->key_id_fd_skey($userid);
+        $key_skey = Key::key_id_fd_skey($userid);
         $login_info = $this->redis->hGetAll($key_skey);
         if (empty($login_info)) {
             $result = array(
@@ -283,7 +272,7 @@ class GameServer {
     }
 
     public function add_fd($fd, $userid) {
-        $key_fd = $this->key_fd_id();
+        $key_fd = Key::key_fd_id();
         $result = $this->redis->hGet($key_fd, $fd, $userid);
         if ($result !== false) {
             $this->log("add_fd error, try to set fd:$fd, userid: $userid");
@@ -298,7 +287,7 @@ class GameServer {
         }
         $name = $data['name'];
         $userid = $data['userid'];
-        $key_user = $this->key_user($userid);
+        $key_user = Key::key_user($userid);
         $user_info = $this->redis->hGetAll($key_user);
         if (!isset($user_info['name'])) {
             $this->redis->hSet($key_user, 'name', $name);
@@ -367,12 +356,12 @@ class GameServer {
     }
 
     public function get_user_info($userid) {
-        $key_user = $this->key_user($userid);
+        $key_user = Key::key_user($userid);
         return $this->redis->hGetAll($key_user);
     }
 
     public function get_user_war_info($userid) {
-        $key_user = $this->key_user($userid);
+        $key_user = Key::key_user($userid);
         $info = $this->redis->hGetAll($key_user);
         return array(
             'userid' => $info['userid'],
@@ -414,32 +403,22 @@ class GameServer {
     const TIMEOUT = 10;
     const WAR_TIME_LIMIT = 300;
 
-    protected function key_room($roomid) {
-        return 'key_room-' . $roomid;
-    }
-
-    protected function key_room_list() {
-        return 'key_room_list';
-    }
-
-    protected function key_room_id($userid) {
-        return 'key_room_id' . $userid;
-    }
+    
 
     protected function get_fd_by_id($userid) {
-        $key = $this->key_id_fd_skey($userid);
+        $key = Key::key_id_fd_skey($userid);
         $fd = $this->redis->hGet($key, 'fd');
         return $fd;
     }
 
     protected function get_pvp_list() {
-        $key_fd = $this->key_fd_id();
+        $key_fd = Key::key_fd_id();
         $userids = $this->redis->hVals($key_fd);
         $userids = shuffle($userids);
         $list = array();
         $count = 0;
         foreach ($userids as $userid) {
-            $key_roomid = $this->key_room_id($userid);
+            $key_roomid = Key::key_room_id($userid);
             $roomid = $this->redis->get($key_roomid);
             if ($roomid === false) { // not in war
                 $war_info = $this->get_user_war_info($userid);
@@ -458,23 +437,23 @@ class GameServer {
     }
 
     protected function set_roomid($userid, $roomid) {
-        $key = $this->key_room_id($userid);
+        $key = Key::key_room_id($userid);
         $this->redis->set($key, $roomid);
     }
 
     protected function get_roomid($userid) {
-        $key = $this->key_room_id($userid);
+        $key = Key::key_room_id($userid);
         return $this->redis->get($key);
     }
 
     protected function in_war($userid) {
-        $key = $this->key_room_id($userid);
+        $key = Key::key_room_id($userid);
         $r = $this->redis->get($key);
         return $r !== false;
     }
 
     protected function is_online($userid) {
-        $key = $this->key_id_fd_skey($userid);
+        $key = Key::key_id_fd_skey($userid);
         $r = $this->redis->hGet($key, 'fd');
         return $r !== false;
     }
@@ -497,7 +476,7 @@ class GameServer {
         $roomid = $this->gen_roomid();
 
         //set room info
-        $key_room = $this->key_room($roomid);
+        $key_room = Key::key_room($roomid);
         $this->redis->hMset($key_room, array(
             'aid' => $aid,
             'did' => $did,
@@ -505,7 +484,7 @@ class GameServer {
         ));
 
         //set room list
-        $key_roomlist = $this->key_room_list();
+        $key_roomlist = Key::key_room_list();
         $this->redis->hSet($key_roomlist, $roomid, self::WAR_STATE_READY);
 
         //set user roomid
@@ -531,7 +510,7 @@ class GameServer {
     public function get_war_enemyid($userid) {
         $roomid = $this->get_roomid($userid);
         if ($roomid !== false) {
-            $key = $this->key_room($roomid);
+            $key = Key::key_room($roomid);
             $did = $this->redis->hGet($key, 'did');
             if ($did !== false) {
                 return $did;
@@ -543,7 +522,7 @@ class GameServer {
     public function get_war_npcid($userid) {
         $roomid = $this->get_roomid($userid);
         if ($roomid !== false) {
-            $key = $this->key_room($roomid);
+            $key = Key::key_room($roomid);
             $did = $this->redis->hGet($key, 'did');
             if ($did !== false && $did == 0) {
                 return $this->redis->hGet($key, 'npcid');
@@ -561,7 +540,7 @@ class GameServer {
         }
 
         $roomid = $a_roomid;
-        $key_roomlist = $this->key_room_list();
+        $key_roomlist = Key::key_room_list();
         $state = $this->redis->hGet($key_roomlist, $roomid);
         if ($state === false) {
             $this->log("error, pvp_ready: state: false");
@@ -600,14 +579,14 @@ class GameServer {
      * ai
      */
     public function onTimer() {
-        $key_list = $this->key_room_list();
+        $key_list = Key::key_room_list();
         $room_list = $this->redis->hGetAll($key_list);
         if (!empty($room_list)) {
             $this->log('room_list | ' . var_export($room_list, true));
         }
         $current_time = time();
         foreach ($room_list as $roomid => $state) {
-            $key_room = $this->key_room($roomid);
+            $key_room = Key::key_room($roomid);
             $room_info = $this->redis->hGetAll($key_room);
             $aid = $room_info['aid'];
             $did = $room_info['did'];
@@ -652,7 +631,7 @@ class GameServer {
     }
 
     protected function clear_user_war_state($userid) {
-        $key = $this->key_room_id($userid);
+        $key = Key::key_room_id($userid);
         $this->redis->delete($key);
     }
 
