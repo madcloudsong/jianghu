@@ -226,6 +226,12 @@ and open the template in the editor.
                 {
                     console.log("WebSocketError!");
                 };
+                
+                function send_with_skey(data) {
+                    data.userid = userid;
+                    data.skey = skey;
+                    ws.send(JSON.stringify(data));
+                }
 
                 function add_chat(data) {
                     var name = data.name;
@@ -319,7 +325,7 @@ and open the template in the editor.
                         var name = prompt("input your name(not blank)");
                     } while (($.trim(name)).length == 0);
                     var data = {cmd: cmd_name, name: name};
-                    ws.send(JSON.stringify(data));
+                    send_with_skey(data);
                 }
 
                 function cb_login(data) {
@@ -361,7 +367,7 @@ and open the template in the editor.
                         return;
                     }
                     var data = {cmd: cmd_chat, chat: text};
-                    ws.send(JSON.stringify(data));
+                    send_with_skey(data);
                     $("#chat_input").val("");
                 });
 

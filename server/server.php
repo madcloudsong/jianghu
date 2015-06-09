@@ -101,7 +101,6 @@ class GameServer {
             $this->ws->push($fd, json_encode($data));
             $this->log('send_system_msg single: ' . $msg, $fd);
         }
-        
     }
 
     public function onTask($ws, $task_id, $from_id, $data) {
@@ -148,6 +147,7 @@ class GameServer {
                     $skey = md5($userid . rand(1, 99999));
                     $result['skey'] = $skey;
                     $this->redis->hMset($key_skey, array('skey' => $skey, 'fd' => $fd));
+                    $this->add_fd($fd, $userid);
                     if (isset($user_info['name'])) {
                         $result['name'] = $user_info['name'];
                         $result['self'] = array(
@@ -190,6 +190,7 @@ class GameServer {
             $skey = md5($userid . rand(1, 99999));
             $this->redis->hMset($key_skey, array('skey' => $skey, 'fd' => $fd));
             $this->redis->hMset($key_user, array('userid' => $userid, 'password' => $password));
+            $this->add_fd($fd, $userid);
             $result['userid'] = $userid;
             $result['skey'] = $skey;
             $this->log("regiseter success: userid=$userid", $fd);
@@ -226,6 +227,16 @@ class GameServer {
             return false;
         } else {
             return true;
+        }
+    }
+
+    public function add_fd($fd, $userid) {
+        $key_fd = $this->key_fd_id();
+        $result = $this->redis->hGet($key_fd, $fd, $userid);
+        if ($result !== false) {
+            $this->log("add_fd error, try to set fd:$fd, userid: $userid");
+        } else {
+            $this->redis->hSet($key_fd, $fd, $userid);
         }
     }
 
