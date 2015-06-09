@@ -397,7 +397,7 @@ and open the template in the editor.
                     alert('password should not be blank!');
                             return;
                     }
-                    var data = {cmd: cmd_register, userid userid, password: password};
+                    var data = {cmd: cmd_register, userid:userid, password: password};
                     ws.send(JSON.stringify(data));
                 });
             });
