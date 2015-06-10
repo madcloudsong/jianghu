@@ -192,351 +192,395 @@ and open the template in the editor.
 
         <script type="text/javascript" src="http://libs.baidu.com/jquery/1.11.1/jquery.min.js"></script>
         <script>
-                var cmd_name = 1,
-                        cmd_chat = 2,
-                        cmd_attack = 3,
-                        cmd_defence = 4,
-                        cmd_rest = 5,
-                        cmd_reborn = 6,
-                        cmd_msg = 7,
-                        cmd_list = 8,
-                        cmd_system = 9,
-                        cmd_war_defence = 10,
-                        cmd_war_wait = 11,
-                        cmd_war_start = 12,
-                        cmd_pvp_ready = 13,
-                        cmd_pvp = 14,
-                        cmd_pvp_list = 15,
-                        cmd_pve = 16,
-                        cmd_pve_list = 17,
-                        cmd_ready_timeout = 18,
-                        cmd_login = 100,
-                        cmd_register = 101,
-                        cmd_error = 999;
-                var self_info = {
-                    hp: 0,
-                    max_hp: 0,
-                    mp: 0,
-                    max_mp: 0,
-                    win: 0,
-                    lose: 0
-                };
-                var loading = true;
-                var userid = '';
-                var skey = '';
-                var username = 'daxia';
+            var cmd_name = 1,
+                    cmd_chat = 2,
+                    cmd_attack = 3,
+                    cmd_defence = 4,
+                    cmd_rest = 5,
+                    cmd_reborn = 6,
+                    cmd_msg = 7,
+                    cmd_list = 8,
+                    cmd_system = 9,
+                    cmd_war_defence = 10,
+                    cmd_war_wait = 11,
+                    cmd_war_start = 12,
+                    cmd_pvp_ready = 13,
+                    cmd_pvp = 14,
+                    cmd_pvp_list = 15,
+                    cmd_pve = 16,
+                    cmd_pve_list = 17,
+                    cmd_ready_timeout = 18,
+                    cmd_pvp_reject = 19,
+                    cmd_pvp_cancel = 20,
+                    cmd_login = 100,
+                    cmd_register = 101,
+                    cmd_error = 999;
+            var self_info = {
+                hp: 0,
+                max_hp: 0,
+                mp: 0,
+                max_mp: 0,
+                win: 0,
+                lose: 0
+            };
+            var loading = true;
+            var userid = '';
+            var skey = '';
+            var username = 'daxia';
+            var enemyid = '';
 
-                function html_encode(str)
-                {
-                    var s = "";
-                    if (str.length == 0)
-                        return "";
-                    s = str.replace(/&/g, "&gt;");
-                    s = s.replace(/</g, "&lt;");
-                    s = s.replace(/>/g, "&gt;");
-                    s = s.replace(/ /g, "&nbsp;");
-                    s = s.replace(/\'/g, "&#39;");
-                    s = s.replace(/\"/g, "&quot;");
-                    s = s.replace(/\n/g, "<br>");
-                    return s;
-                }
+            function html_encode(str)
+            {
+                var s = "";
+                if (str.length == 0)
+                    return "";
+                s = str.replace(/&/g, "&gt;");
+                s = s.replace(/</g, "&lt;");
+                s = s.replace(/>/g, "&gt;");
+                s = s.replace(/ /g, "&nbsp;");
+                s = s.replace(/\'/g, "&#39;");
+                s = s.replace(/\"/g, "&quot;");
+                s = s.replace(/\n/g, "<br>");
+                return s;
+            }
 
-                var ws = new WebSocket("ws://itsong.net:9502");
-                ws.onopen = function ()
-                {
-                    console.log("open");
-                    loading = false;
-                    //ws.send("hello");
-                };
-                ws.onmessage = function (evt)
-                {
-                    console.log(evt.data);
-                    var data = JSON.parse(evt.data);
-                    switch (data.cmd) {
-                        case cmd_name:
-                            set_name(data);
-                            break;
-                        case cmd_login:
-                            cb_login(data);
-                            break;
-                        case cmd_register:
-                            cb_register(data);
-                            break;
-                        case cmd_chat:
-                            add_chat(data);
-                            break;
-                        case cmd_msg:
-                            add_msg(data);
-                            set_self_info(data.self);
-                            set_enemy_info(data.enemy);
-                            break;
-                        case cmd_error:
-                            alert(data.msg);
-                            location.reload();
-                            break;
-                        case cmd_system:
-                            add_system(data);
-                            break;
-                        case cmd_war_defence:
-                            war_defence(data);
-                            break;
-                        case cmd_war_wait:
-                            war_wait(data);
-                            break;
-                        case cmd_war_start:
-                            war_start(data);
-                            break;
-                        case cmd_pvp_ready:
-                            break;
-                        case cmd_pvp:
-                            break;
-                        case cmd_pvp_list:
-                            pvp_list(data);
-                            break;
-                        default:
-                            console.log('unknown cmd');
-                    }
-                };
-                ws.onclose = function (evt)
-                {
-                    console.log("WebSocketClosed!");
-                };
-                ws.onerror = function (evt)
-                {
-                    console.log("WebSocketError!");
-                };
-
-
-
-                function send_with_skey(data) {
-                    data.userid = userid;
-                    data.skey = skey;
-                    ws.send(JSON.stringify(data));
-                }
-
-                function add_chat(data) {
-                    var name = data.name;
-                    var chat = data.chat;
-                    var time = data.time;
-                    if (name == self_info.name) {
-                        color = 'yellow';
-                    } else {
-                        color = 'blue';
-                    }
-                    $("#chat_history").prepend('<li><span class="' + color + '">' + html_encode(name) + '</span> (' + time + ') : <span class="green">' + html_encode(chat) + '</span></li>');
-                }
-
-                function add_msg(data) {
-                    var time = data.time;
-                    var name = data.name;
-                    $("#msg").append('<li>[' + name + '] (' + time + ') : <span>' + data.msg + '</span></li>');
-                }
-
-                function add_system(data) {
-                    var name = data.name;
-                    var chat = data.chat;
-                    var time = data.time;
-                    $("#chat_history").prepend('<li>[<span class="orange">SYSTEM MSG</span>] (' + time + ') : <span class="green">' + html_encode(chat) + '</span></li>');
-                }
-
-
-                function set_self_info(self) {
-                    if (self == undefined) {
-                        console.log('self undefined');
-                        return;
-                    }
-                    self_info.hp = self.hp;
-                    self_info.mp = self.mp;
-                    self_info.max_hp = self.max_hp;
-                    self_info.max_mp = self.max_mp;
-                    self_info.win = self.win;
-                    self_info.lose = self.lose;
-
-                    var text_hp = self.hp + '/' + self.max_hp;
-                    var text_mp = self.mp + '/' + self.max_mp;
-                    var text_lose = self.win + '/' + self.lose;
-                    $("#self_hp").text(text_hp);
-                    $("#self_mp").text(text_mp);
-                    $("#self_vs").text(text_lose);
-                }
-
-                function set_enemy_info(enemy) {
-                    if (enemy == undefined) {
-                        console.log('enemy undefined');
-                        return;
-                    }
-                    var text_hp = enemy.hp + '/' + enemy.max_hp;
-                    var text_mp = enemy.mp + '/' + enemy.max_mp;
-                    var text_lose = enemy.win + '/' + enemy.lose;
-                    $("#enemy_name").text(html_encode(enemy.name));
-                    $("#enemy_hp").text(text_hp);
-                    $("#enemy_mp").text(text_mp);
-                    $("#enemy_vs").text(text_lose);
-                }
-
-                function set_name(data) {
-                    if (data.r != 0) {
-                        alert(data.msg);
-                        init();
-                    } else {
-                        $("#self_name").text(html_encode(data.name));
+            var ws = new WebSocket("ws://itsong.net:9502");
+            ws.onopen = function ()
+            {
+                console.log("open");
+                loading = false;
+                //ws.send("hello");
+            };
+            ws.onmessage = function (evt)
+            {
+                console.log(evt.data);
+                var data = JSON.parse(evt.data);
+                switch (data.cmd) {
+                    case cmd_name:
+                        set_name(data);
+                        break;
+                    case cmd_login:
+                        cb_login(data);
+                        break;
+                    case cmd_register:
+                        cb_register(data);
+                        break;
+                    case cmd_chat:
+                        add_chat(data);
+                        break;
+                    case cmd_msg:
+                        add_msg(data);
                         set_self_info(data.self);
-                    }
-                }
-
-                function init() {
-                    do {
-                        var name = prompt("input your name(not blank)");
-                    } while (($.trim(name)).length == 0);
-                    var data = {cmd: cmd_name, name: name};
-                    send_with_skey(data);
-                }
-
-                function cb_login(data) {
-                    if (data.r == 0) {
-                        userid = data.userid;
-                        skey = data.skey;
-                        $("#login").addClass('hidden');
-                        $("#main").removeClass('hidden');
-                        if (data.name != undefined) {
-                            username = data.name;
-                            $("#self_name").text(html_encode(username));
-                            set_self_info(data.self);
-                        } else {
-                            init();
-                        }
-                    } else {
+                        set_enemy_info(data.enemy);
+                        break;
+                    case cmd_error:
                         alert(data.msg);
-                    }
+                        location.reload();
+                        break;
+                    case cmd_system:
+                        add_system(data);
+                        break;
+                    case cmd_war_defence:
+                        war_defence(data);
+                        break;
+                    case cmd_war_wait:
+                        war_wait(data);
+                        break;
+                    case cmd_war_start:
+                        war_start(data);
+                        break;
+                    case cmd_pvp_list:
+                        pvp_list(data);
+                        break;
+                    case cmd_ready_timeout:
+                        ready_timeout(data);
+                        break;
+                    case cmd_pvp_cancel:
+                        cb_pvp_cancel(data);
+                        break;
+                    default:
+                        console.log('unknown cmd');
                 }
+            };
+            ws.onclose = function (evt)
+            {
+                console.log("WebSocketClosed!");
+            };
+            ws.onerror = function (evt)
+            {
+                console.log("WebSocketError!");
+            };
 
-                function cb_register(data) {
-                    if (data.r == 0) {
-                        userid = data.userid;
-                        skey = data.skey;
-                        $("#login").addClass('hidden');
-                        $("#main").removeClass('hidden');
+
+
+            function send_with_skey(data) {
+                data.userid = userid;
+                data.skey = skey;
+                ws.send(JSON.stringify(data));
+            }
+
+            function add_chat(data) {
+                var name = data.name;
+                var chat = data.chat;
+                var time = data.time;
+                if (name == self_info.name) {
+                    color = 'yellow';
+                } else {
+                    color = 'blue';
+                }
+                $("#chat_history").prepend('<li><span class="' + color + '">' + html_encode(name) + '</span> (' + time + ') : <span class="green">' + html_encode(chat) + '</span></li>');
+            }
+
+            function add_msg(data) {
+                var time = data.time;
+                var name = data.name;
+                $("#msg").append('<li>[' + name + '] (' + time + ') : <span>' + data.msg + '</span></li>');
+            }
+
+            function add_system(data) {
+                var name = data.name;
+                var chat = data.chat;
+                var time = data.time;
+                $("#chat_history").prepend('<li>[<span class="orange">SYSTEM MSG</span>] (' + time + ') : <span class="green">' + html_encode(chat) + '</span></li>');
+            }
+
+
+            function set_self_info(self) {
+                if (self == undefined) {
+                    console.log('self undefined');
+                    return;
+                }
+                self_info.hp = self.hp;
+                self_info.mp = self.mp;
+                self_info.max_hp = self.max_hp;
+                self_info.max_mp = self.max_mp;
+                self_info.win = self.win;
+                self_info.lose = self.lose;
+
+                var text_hp = self.hp + '/' + self.max_hp;
+                var text_mp = self.mp + '/' + self.max_mp;
+                var text_lose = self.win + '/' + self.lose;
+                $("#self_hp").text(text_hp);
+                $("#self_mp").text(text_mp);
+                $("#self_vs").text(text_lose);
+            }
+
+            function set_enemy_info(enemy) {
+                if (enemy == undefined) {
+                    console.log('enemy undefined');
+                    return;
+                }
+                var text_hp = enemy.hp + '/' + enemy.max_hp;
+                var text_mp = enemy.mp + '/' + enemy.max_mp;
+                var text_lose = enemy.win + '/' + enemy.lose;
+                $("#enemy_name").text(html_encode(enemy.name));
+                $("#enemy_hp").text(text_hp);
+                $("#enemy_mp").text(text_mp);
+                $("#enemy_vs").text(text_lose);
+            }
+
+            function set_name(data) {
+                if (data.r != 0) {
+                    alert(data.msg);
+                    init();
+                } else {
+                    $("#self_name").text(html_encode(data.name));
+                    set_self_info(data.self);
+                }
+            }
+
+            function init() {
+                do {
+                    var name = prompt("input your name(not blank)");
+                } while (($.trim(name)).length == 0);
+                var data = {cmd: cmd_name, name: name};
+                send_with_skey(data);
+            }
+
+            function cb_login(data) {
+                if (data.r == 0) {
+                    userid = data.userid;
+                    skey = data.skey;
+                    $("#login").addClass('hidden');
+                    $("#main").removeClass('hidden');
+                    if (data.name != undefined) {
+                        username = data.name;
+                        $("#self_name").text(html_encode(username));
+                        set_self_info(data.self);
+                    } else {
                         init();
+                    }
+                } else {
+                    alert(data.msg);
+                }
+            }
+
+            function cb_register(data) {
+                if (data.r == 0) {
+                    userid = data.userid;
+                    skey = data.skey;
+                    $("#login").addClass('hidden');
+                    $("#main").removeClass('hidden');
+                    init();
+                } else {
+                    alert(data.msg);
+                }
+            }
+
+            function war_defence(data) {
+                if (data.r == 0) {
+                    enemyid = data.aid;
+                    set_enemy_info(data.enemy);
+                    if (confirm('war_defence')) {
+                        pvp_ready(enemyid);
                     } else {
-                        alert(data.msg);
+                        pvp_reject(enemyid);
                     }
                 }
+            }
 
-                function war_defence(data) {
-
+            function war_wait(data) {
+                if (data.r == 0) {
+                    enemyid = data.did;
+                    set_enemy_info(data.enemy);
+                    alert('war_wait');
                 }
+            }
 
-                function war_wait(data) {
-
+            function war_start(data) {
+                if (data.r == 0) {
+                    enemyid = data.did;
+                    set_enemy_info(data.self);
+                    set_enemy_info(data.enemy);
+                    alert('war_start');
                 }
+            }
 
-                function war_start(data) {
+            function ready_timeout(data) {
+                alert('ready_timeout');
+            }
 
+
+            function cb_pvp_cancel(data) {
+                if (data.r == 0) {
+                    alert('cb_pvp_cancel' + data.did);
                 }
+            }
 
-                function get_enemy_item(func_name, info) {
-                    var html = '<li>' +
-                            '<a href="javascript:;" onclick="' + func_name + '(\'' + info.userid + '\', \''+info.name+'\')">' +
-                            '<p>' + html_encode(info.name) + '</p>' +
-                            '<span>  hp:</span><span>' + info.max_hp + '</span>' +
-                            '<span>  mp:</span><span>' + info.max_mp + '</span>' +
-                            '<span>  vs:</span><span>' + info.win + '/' + info.lose + '</span>' +
-                            '</a>' +
-                            '</li>';
-                    return html;
-                }
-                
-                function choose_pvp(did, name) {
-                    if(confirm('choose ' + name+ '?')){
-                        var data = {cmd: cmd_pvp, did: did};
-                        send_with_skey(data);
-                        $("#modal").addClass("hidden");
-                    }
-                }
+            function get_enemy_item(func_name, info) {
+                var html = '<li>' +
+                        '<a href="javascript:;" onclick="' + func_name + '(\'' + info.userid + '\', \'' + info.name + '\')">' +
+                        '<p>' + html_encode(info.name) + '</p>' +
+                        '<span>  hp:</span><span>' + info.max_hp + '</span>' +
+                        '<span>  mp:</span><span>' + info.max_mp + '</span>' +
+                        '<span>  vs:</span><span>' + info.win + '/' + info.lose + '</span>' +
+                        '</a>' +
+                        '</li>';
+                return html;
+            }
 
-                function pvp_list(data) {
-                    if (data.r == 0) {
-                        var list = data.list;
-                        var html = '';
-                        for (i in list) {
-                            console.log(list[i]);
-                            var item = get_enemy_item('choose_pvp', list[i]);
-                            html += item;
-                        }
-                        if (html != '') {
-                            $("#enemy-list").children().remove();
-                            $("#enemy-list").append(html);
-                        }
-                    }
-                }
-
-
-                //defence to get ready
-                function pvp_ready() {
+            function choose_pvp(did, name) {
+                if (confirm('choose ' + name + '?')) {
+                    var data = {cmd: cmd_pvp, did: did};
                     send_with_skey(data);
+                    $("#modal").addClass("hidden");
                 }
+            }
+
+            function pvp_list(data) {
+                if (data.r == 0) {
+                    var list = data.list;
+                    var html = '';
+                    for (i in list) {
+                        console.log(list[i]);
+                        var item = get_enemy_item('choose_pvp', list[i]);
+                        html += item;
+                    }
+                    if (html != '') {
+                        $("#enemy-list").children().remove();
+                        $("#enemy-list").append(html);
+                    }
+                }
+            }
 
 
-                $(".btn-send").click(function () {
-                    var text = $("#chat_input").val();
-                    if (($.trim(text)).length == 0) {
-                        alert('should not be blank!');
-                        return;
-                    }
-                    var data = {cmd: cmd_chat, chat: text};
-                    send_with_skey(data);
-                    $("#chat_input").val("");
-                });
+            //defence to get ready
+            function pvp_ready(aid) {
+                var data = {cmd: cmd_pvp_ready, aid: aid};
+                send_with_skey(data);
+            }
 
-                $(".btn-clear").click(function () {
-                    $("#chat_history").children().remove();
-                });
+            function pvp_reject(aid) {
+                var data = {cmd: cmd_pvp_reject, aid: aid};
+                send_with_skey(data);
+            }
 
-                $(".btn-cancel").click(function () {
-                    $("#modal").addClass('hidden');
-                });
+            function pvp_cancel(did) {
+                var data = {cmd: cmd_pvp_cancel, did: did};
+                send_with_skey(data);
+            }
 
-                $(".btn-pvp").click(function () {
-                    var data = {cmd: cmd_pvp_list};
-                    send_with_skey(data);
-                    $("#modal").removeClass('hidden');
-                });
 
-                $(".btn-login").click(function () {
-                    if (loading) {
-                        return;
-                    }
-                    var userid = $.trim($("#userid").val());
-                    var password = $.trim($("#password").val());
-                    if ((userid).length == 0) {
-                        alert('userid should not be blank!');
-                        return;
-                    }
-                    if ((password).length == 0) {
-                        alert('password should not be blank!');
-                        return;
-                    }
-                    var data = {cmd: cmd_login, userid: userid, password: password};
-                    ws.send(JSON.stringify(data));
-                });
+            $(".btn-send").click(function () {
+                var text = $("#chat_input").val();
+                if (($.trim(text)).length == 0) {
+                    alert('should not be blank!');
+                    return;
+                }
+                var data = {cmd: cmd_chat, chat: text};
+                send_with_skey(data);
+                $("#chat_input").val("");
+            });
 
-                $(".btn-register").click(function () {
-                    if (loading) {
-                        return;
-                    }
-                    var userid = $.trim($("#userid").val());
-                    var password = $.trim($("#password").val());
-                    if ((userid).length == 0) {
-                        alert('userid should not be blank!');
-                        return;
-                    }
-                    if ((password).length == 0) {
-                        alert('password should not be blank!');
-                        return;
-                    }
-                    var data = {cmd: cmd_register, userid: userid, password: password};
-                    ws.send(JSON.stringify(data));
-                });
+            $(".btn-clear").click(function () {
+                $("#chat_history").children().remove();
+            });
+
+            $(".btn-cancel").click(function () {
+                $("#modal").addClass('hidden');
+            });
+
+            $(".btn-pvp").click(function () {
+                var data = {cmd: cmd_pvp_list};
+                send_with_skey(data);
+                $("#modal").removeClass('hidden');
+            });
+
+            $(".btn-login").click(function () {
+                if (loading) {
+                    return;
+                }
+                var userid = $.trim($("#userid").val());
+                var password = $.trim($("#password").val());
+                if ((userid).length == 0) {
+                    alert('userid should not be blank!');
+                    return;
+                }
+                if ((password).length == 0) {
+                    alert('password should not be blank!');
+                    return;
+                }
+                var data = {cmd: cmd_login, userid: userid, password: password};
+                ws.send(JSON.stringify(data));
+            });
+
+            $(".btn-register").click(function () {
+                if (loading) {
+                    return;
+                }
+                var userid = $.trim($("#userid").val());
+                var password = $.trim($("#password").val());
+                if ((userid).length == 0) {
+                    alert('userid should not be blank!');
+                    return;
+                }
+                if ((password).length == 0) {
+                    alert('password should not be blank!');
+                    return;
+                }
+                var data = {cmd: cmd_register, userid: userid, password: password};
+                ws.send(JSON.stringify(data));
+            });
 
         </script>
     </body>

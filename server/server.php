@@ -27,6 +27,8 @@ class GameServer {
     const cmd_pve = 16;
     const cmd_pve_list = 17;
     const cmd_ready_timeout = 18;
+    const cmd_pvp_reject = 19;
+    const cmd_pvp_cancel = 20;
     const cmd_login = 100;
     const cmd_register = 101;
     const cmd_error = 999;
@@ -106,6 +108,12 @@ class GameServer {
                 break;
             case self::cmd_pvp_ready:
                 $this->cmd_pvp_ready($frame->fd, $data);
+                break;
+            case self::cmd_pvp_reject:
+                $this->cmd_pvp_reject($frame->fd, $data);
+                break;
+            case self::cmd_pvp_cancel:
+                $this->cmd_pvp_cancel($frame->fd, $data);
                 break;
             default: $ws->push($frame->fd, json_encode(array('r' => 1, 'msg' => 'unknown cmd')));
         }
@@ -446,7 +454,26 @@ class GameServer {
         $aid = $data['aid'];
         $this->pvp_ready($aid, $userid);
     }
-
+    
+    public function cmd_pvp_reject($fd, $data) {
+        if (!$this->check_login($fd, $data)) {
+            return;
+        }
+        $userid = $data['userid'];
+        $aid = $data['aid'];
+        $this->pvp_reject($aid, $userid);
+    }
+    
+    public function cmd_pvp_cancel($fd, $data) {
+        if (!$this->check_login($fd, $data)) {
+            return;
+        }
+        $userid = $data['userid'];
+        $did = $data['did'];
+        $this->pvp_cancel($userid, $did);
+    }
+    
+    
     protected function get_fd_by_id($userid) {
         $key = Key::key_id_fd_skey($userid);
         $fd = $this->redis->hGet($key, 'fd');
@@ -540,6 +567,79 @@ class GameServer {
         $this->notice_war_wait($aid, $did);
         $this->notice_war_defence($aid, $did);
     }
+    
+    public function pvp_reject($aid, $did) {
+        $a_roomid = $this->get_roomid($aid);
+        $d_roomid = $this->get_roomid($did);
+        if ($a_roomid === false || $d_roomid === false || $a_roomid != $d_roomid) {
+            $this->log("error, pvp_reject: aroomid: $a_roomid, droomid: $d_roomid");
+            return;
+        }
+
+        $roomid = $a_roomid;
+        $key_roomlist = Key::key_room_list();
+        $state = $this->redis->hGet($key_roomlist, $roomid);
+        if ($state === false) {
+            $this->log("error, pvp_reject: state: false");
+            return;
+        }
+        if ($state == self::WAR_STATE_READY) {
+            $this->clear_user_war_state($aid);
+            $this->clear_user_war_state($did);
+            $key_roomid = Key::key_room($roomid);
+            $this->redis->delete($key_roomid);
+            $this->redis->hDel($key_roomlist, $roomid);
+            $this->notice_war_cancel($aid, $did, $did. ' reject your fight request');
+            $this->notice_war_cancel($did, $aid, $aid. ' pvp cancel');
+        } else {
+            $this->log("error, pvp_reject: state: $state");
+            return;
+        }
+    }
+    
+    public function pvp_cancel($aid, $did) {
+        $a_roomid = $this->get_roomid($aid);
+        $d_roomid = $this->get_roomid($did);
+        if ($a_roomid === false || $d_roomid === false || $a_roomid != $d_roomid) {
+            $this->log("error, pvp_cancel: aroomid: $a_roomid, droomid: $d_roomid");
+            return;
+        }
+
+        $roomid = $a_roomid;
+        $key_roomlist = Key::key_room_list();
+        $state = $this->redis->hGet($key_roomlist, $roomid);
+        if ($state === false) {
+            $this->log("error, pvp_cancel: state: false");
+            return;
+        }
+        if ($state == self::WAR_STATE_READY) {
+            $this->clear_user_war_state($aid);
+            $this->clear_user_war_state($did);
+            $key_roomid = Key::key_room($roomid);
+            $this->redis->delete($key_roomid);
+            $this->redis->hDel($key_roomlist, $roomid);
+            $this->notice_war_cancel($aid, $did, $did. ' pvp cancel');
+            $this->notice_war_cancel($did, $aid, $aid. ' cancel pvp request');
+        } else {
+            $this->log("error, pvp_cancel: state: $state");
+            return;
+        }
+    }
+    
+    public function notice_war_cancel($userid, $enemyid, $msg) {
+        $data = array(
+            'cmd' => self::cmd_war_cancel,
+            'r' => 0,
+            'msg' => '',
+            'enemyid' => $enemyid,
+        );
+        $fd = $this->get_fd_by_id($userid);
+        if ($fd !== false) {
+            $this->pushto($fd, $data);
+            $this->send_msg($fd, $enemyid, $msg);
+        }
+    }
+
 
     public function notice_war_defence($aid, $did) {
         $ainfo = $this->get_user_war_info($aid);
@@ -639,7 +739,7 @@ class GameServer {
             return;
         }
         if ($state == self::WAR_STATE_READY) {
-            $this->redis->hSet($key_roomlist, self::WAR_STATE_RUN);
+            $this->redis->hSet($key_roomlist, $roomid, self::WAR_STATE_RUN);
             $ainfo = $this->get_user_war_info($aid);
             $dinfo = $this->get_user_war_info($did);
             $this->notice_war_start($aid, $dinfo);
