@@ -64,7 +64,7 @@ class GameServer {
 
     public function onWorkerStart($serv, $worker_id) {
         if ($worker_id == 0) {
-            $serv->tick(1000, array($this, 'onTimer'));
+            $serv->tick(3000, array($this, 'onTimer'));
             $key = Key::key_fd_id();
             $this->redis->delete($key);
         }
@@ -420,7 +420,7 @@ class GameServer {
     const WAR_STATE_RUN = 2;
     const WAR_STATE_END = 3;
     const TIMEOUT = 10;
-    const WAR_TIME_LIMIT = 300;
+    const WAR_TIME_LIMIT = 60;
 
     public function cmd_pvp_list($fd, $data) {
         if (!$this->check_login($fd, $data)) {
@@ -628,7 +628,7 @@ class GameServer {
     
     public function notice_war_cancel($userid, $enemyid, $msg) {
         $data = array(
-            'cmd' => self::cmd_war_cancel,
+            'cmd' => self::cmd_pvp_cancel,
             'r' => 0,
             'msg' => '',
             'enemyid' => $enemyid,
@@ -637,6 +637,8 @@ class GameServer {
         if ($fd !== false) {
             $this->pushto($fd, $data);
             $this->send_msg($fd, $enemyid, $msg);
+        }else{
+            $this->log("notice_war_cancel fd not exist userid: $userid");
         }
     }
 
