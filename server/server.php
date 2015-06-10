@@ -603,9 +603,7 @@ class GameServer {
         if ($state == self::WAR_STATE_READY) {
             $this->clear_user_war_state($aid);
             $this->clear_user_war_state($did);
-            $key_roomid = Key::key_room($roomid);
-            $this->redis->delete($key_roomid);
-            $this->redis->hDel($key_roomlist, $roomid);
+            $this->clear_room($roomid);
             $this->notice_war_cancel($aid, $did, $did . ' reject your fight request');
             $this->notice_war_cancel($did, $aid, $aid . ' pvp cancel');
         } else {
@@ -632,9 +630,7 @@ class GameServer {
         if ($state == self::WAR_STATE_READY) {
             $this->clear_user_war_state($aid);
             $this->clear_user_war_state($did);
-            $key_roomid = Key::key_room($roomid);
-            $this->redis->delete($key_roomid);
-            $this->redis->hDel($key_roomlist, $roomid);
+            $this->clear_room($roomid);
             $this->notice_war_cancel($aid, $did, $did . ' pvp cancel');
             $this->notice_war_cancel($did, $aid, $aid . ' cancel pvp request');
         } else {
@@ -691,6 +687,8 @@ class GameServer {
         if ($dfd !== false) {
             $this->pushto($dfd, $data);
             $this->send_system_msg($dfd, $ainfo['name'] . ' want to fight with you');
+        }else{
+            $this->log("notice_war_defence fd not exist aid: $aid, did: $did");
         }
     }
 
@@ -707,6 +705,8 @@ class GameServer {
         if ($afd !== false) {
             $this->pushto($afd, $data);
             $this->send_system_msg($afd, 'waiting for '.$dinfo['name'].' accept');
+        }else{
+            $this->log("notice_war_wait fd not exist aid: $aid, did: $did");
         }
     }
 
@@ -727,11 +727,26 @@ class GameServer {
         if ($dfd !== false) {
             $this->pushto($dfd, $data);
             $this->send_system_msg($dfd, 'timeout for you accept '.$ainfo['name'].'\'s request, cancel');
+        }else{
+            $this->log("notice_ready_timeout fd not exist aid: $aid, did: $did");
         }
     }
 
-    public function notice_war_start($userid, $enemy_info) {
-        
+    public function notice_war_start($userid, $self_info, $enemy_info) {
+        $data = array(
+            'cmd' => self::cmd_war_start,
+            'r' => 0,
+            'msg' => '',
+            'self' => $self_info,
+            'enemy' => $enemy_info,
+        );
+        $fd = $this->get_fd_by_id($userid);
+        if ($fd !== false) {
+            $this->pushto($fd, $data);
+            $this->send_system_msg($userid, $self_info['name'].' battle with '.$enemy_info['name'].' start');
+        }else{
+            $this->log("notice_war_start fd not exist userid: $userid");
+        }
     }
 
     public function get_war_enemyid($userid) {
@@ -775,14 +790,37 @@ class GameServer {
         }
         if ($state == self::WAR_STATE_READY) {
             $this->redis->hSet($key_roomlist, $roomid, self::WAR_STATE_RUN);
+            $key_room = Key::key_room($roomid);
+            $this->redis->hSet($key_room, 'time', time());
             $ainfo = $this->get_user_war_info($aid);
             $dinfo = $this->get_user_war_info($did);
-            $this->notice_war_start($aid, $dinfo);
-            $this->notice_war_start($did, $ainfo);
+            $this->notice_war_start($aid, $ainfo, $dinfo);
+            $this->notice_war_start($did, $dinfo, $ainfo);
+            $this->log("pvp_ready: war_start aid: $aid, bid: $did");
         } else {
             $this->log("error, pvp_ready: state: $state");
             return;
         }
+    }
+    
+    /**
+     * check whether the room of user is in running state
+     * @param string $userid
+     * @return boolean
+     */
+    public function check_war_running($userid) {
+        $roomid = $this->get_roomid($userid);
+        if($roomid !== false) {
+            $state = $this->get_room_state($roomid);
+            return $state === self::WAR_STATE_RUN;
+        }
+        return false;
+    }
+    
+    public function get_room_state($roomid) {
+        $key = Key::key_room_list();
+        $state = $this->redis->hGet($key, $roomid);
+        return $state;
     }
 
     public function pve($aid, $npcid) {
@@ -824,8 +862,8 @@ class GameServer {
             $room_info = $this->redis->hGetAll($key_room);
             $aid = $room_info['aid'];
             $did = $room_info['did'];
+            $time = $room_info['time'];
             if ($state == self::WAR_STATE_READY) {
-                $time = $room_info['time'];
                 if ($time + self::TIMEOUT < $current_time) {//ready timeout
                     $this->ready_timeout($aid);
                     $this->ready_timeout($did);
