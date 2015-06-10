@@ -175,15 +175,7 @@ and open the template in the editor.
         <div id="modal" class="modal hidden">
             <div class="panel-list">
                 <ul id="enemy-list">
-                    <li>
-                        <a href="javascript:;" onclick="">
-                            <p>name</p>
-                            <span>hp:</span><span>100</span>
-                            <span>mp:</span><span>100</span>
-                            <span>vs:</span><span>10/10</span>
-                        </a>
-                    </li>
-                    <li><a>cannot find enemy</a></li>
+
                 </ul>
                 <a href="javascript:;" class="btn btn-cancel">Cancel</a>
             </div>
@@ -213,6 +205,7 @@ and open the template in the editor.
                     cmd_pvp_reject = 19,
                     cmd_pvp_cancel = 20,
                     cmd_system_msg = 21,
+                    cmd_war_end = 22,
                     cmd_login = 100,
                     cmd_register = 101,
                     cmd_error = 999;
@@ -302,6 +295,9 @@ and open the template in the editor.
                     case cmd_system_msg:
                         cb_system_msg(data);
                         break;
+                    case cmd_war_end:
+                        cb_war_end(data);
+                        break;
                     default:
                         console.log('unknown cmd');
                 }
@@ -347,7 +343,7 @@ and open the template in the editor.
                 var time = data.time;
                 $("#chat_history").prepend('<li>[<span class="orange">SYSTEM MSG</span>] (' + time + ') : <span class="green">' + html_encode(chat) + '</span></li>');
             }
-            
+
             function cb_system_msg(data) {
                 var time = data.time;
                 var name = data.name;
@@ -465,6 +461,14 @@ and open the template in the editor.
                     alert('war_start');
                 }
             }
+            
+            function cb_war_end(data) {
+                if (data.r == 0) {
+                    set_enemy_info(data.self);
+                    set_enemy_info(data.enemy);
+                    alert('cb_war_end');
+                }
+            }
 
             function ready_timeout(data) {
                 alert('ready_timeout');
@@ -489,6 +493,11 @@ and open the template in the editor.
                 return html;
             }
 
+            function get_empty_item() {
+                var html = '<li><a>cannot find enemy</a></li>';
+                return html;
+            }
+
             function choose_pvp(did, name) {
                 if (confirm('choose ' + name + '?')) {
                     var data = {cmd: cmd_pvp, did: did};
@@ -509,6 +518,9 @@ and open the template in the editor.
                     if (html != '') {
                         $("#enemy-list").children().remove();
                         $("#enemy-list").append(html);
+                    } else {
+                        $("#enemy-list").children().remove();
+                        $("#enemy-list").append(get_empty_item());
                     }
                 }
             }

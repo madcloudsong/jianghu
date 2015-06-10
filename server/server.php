@@ -30,6 +30,7 @@ class GameServer {
     const cmd_pvp_reject = 19;
     const cmd_pvp_cancel = 20;
     const cmd_system_msg = 21;
+    const cmd_war_end = 22;
     const cmd_login = 100;
     const cmd_register = 101;
     const cmd_error = 999;
@@ -555,7 +556,7 @@ class GameServer {
             return;
         }
         if ($this->in_war($aid)) {
-            $this->log("userid: $did is in war");
+            $this->log("userid: $aid is in war");
             return;
         }
         if ($this->in_war($did)) {
@@ -882,8 +883,13 @@ class GameServer {
                     $this->clear_user_war_state($did);
                     $this->clear_room($roomid);
                     $this->log("WAR_TIME_LIMIT timeout roomid: $roomid, aid: $aid, did: $did");
+                    $toamsg = '';
+                    $todmsg = '';
+                    $this->notice_war_end($aid, $did, $toamsg);
+                    $this->notice_war_end($did, $aid, $todmsg);
+                    $this->log("notice_war_end roomid: $roomid, aid: $aid, did: $did, toamsg: $toamsg");
                 }
-                if ($did == 0) { // pve
+                else if ($did == 0) { // pve
                     $npcid = $room_info['npcid'];
                     $npc_info = array(
                         'name' => 'npc',
