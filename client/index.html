@@ -212,6 +212,7 @@ and open the template in the editor.
                     cmd_ready_timeout = 18,
                     cmd_pvp_reject = 19,
                     cmd_pvp_cancel = 20,
+                    cmd_system_msg = 21,
                     cmd_login = 100,
                     cmd_register = 101,
                     cmd_error = 999;
@@ -298,6 +299,9 @@ and open the template in the editor.
                     case cmd_pvp_cancel:
                         cb_pvp_cancel(data);
                         break;
+                    case cmd_system_msg:
+                        cb_system_msg(data);
+                        break;
                     default:
                         console.log('unknown cmd');
                 }
@@ -342,6 +346,12 @@ and open the template in the editor.
                 var chat = data.chat;
                 var time = data.time;
                 $("#chat_history").prepend('<li>[<span class="orange">SYSTEM MSG</span>] (' + time + ') : <span class="green">' + html_encode(chat) + '</span></li>');
+            }
+            
+            function cb_system_msg(data) {
+                var time = data.time;
+                var name = data.name;
+                $("#msg").prepend('<li>[<span class="orange">SYSTEM MSG</span>] (' + time + ') : <span class="green">' + data.msg + '</span></li>');
             }
 
 
@@ -463,7 +473,7 @@ and open the template in the editor.
 
             function cb_pvp_cancel(data) {
                 if (data.r == 0) {
-                    alert('cb_pvp_cancel' + data.did);
+                    alert('cb_pvp_cancel');
                 }
             }
 

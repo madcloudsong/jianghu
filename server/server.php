@@ -29,6 +29,7 @@ class GameServer {
     const cmd_ready_timeout = 18;
     const cmd_pvp_reject = 19;
     const cmd_pvp_cancel = 20;
+    const cmd_system_msg = 21;
     const cmd_login = 100;
     const cmd_register = 101;
     const cmd_error = 999;
@@ -129,13 +130,13 @@ class GameServer {
             $this->redis->hDel($key_fd, $fd);
             $this->redis->delete($key_id);
             $this->log("client {$fd} closed\n");
-            $this->send_system_msg("$username has gone");
+            $this->send_system_chat("$username has gone");
         } else {
             $this->log('a no fd user has been removed');
         }
     }
 
-    public function send_system_msg($msg, $all = 1, $fd = 0) {
+    public function send_system_chat($msg, $all = 1, $fd = 0) {
         $data = array(
             'r' => 0,
             'msg' => '',
@@ -147,10 +148,10 @@ class GameServer {
 
         if ($all) {
             $this->broadcast(json_encode($data));
-            $this->log('send_system_msg all: ' . $msg, $fd);
+            $this->log('send_system_chat all: ' . $msg, $fd);
         } else {
             $this->ws->push($fd, json_encode($data));
-            $this->log('send_system_msg single: ' . $msg, $fd);
+            $this->log('send_system_chat single: ' . $msg, $fd);
         }
     }
 
@@ -216,7 +217,7 @@ class GameServer {
                         'win' => $user_info['win'],
                         'lose' => $user_info['lose'],
                     );
-                    $this->send_system_msg($user_info['name'] . ' come in');
+                    $this->send_system_chat($user_info['name'] . ' come in');
                     $this->send_welcome($fd, $user_info['name']);
                 }
             } else {
@@ -318,7 +319,7 @@ class GameServer {
             $this->redis->hMset($key_user, $attr);
             $result['self'] = $attr;
             $this->pushto($fd, $result);
-            $this->send_system_msg($name . ' come in');
+            $this->send_system_chat($name . ' come in');
             $this->send_welcome($fd, $name);
         } else {
             $this->log('set name twice', $fd);
@@ -414,6 +415,23 @@ class GameServer {
         }
         $this->ws->push($fd, json_encode($result));
     }
+    
+    public function send_system_msg($fd, $msg, $self = null, $enemy = null) {
+        $result = array(
+            'r' => 0,
+            'cmd' => self::cmd_system_msg,
+            'name' => self::NAME_GAME,
+            'msg' => $msg,
+            'time' => date('H:i:s'),
+        );
+        if ($self !== null) {
+            $result['self'] = $self;
+        }
+        if ($enemy !== null) {
+            $result['enemy'] = $enemy;
+        }
+        $this->ws->push($fd, json_encode($result));
+    }
 
     ////////////
     const WAR_STATE_READY = 1;
@@ -454,7 +472,7 @@ class GameServer {
         $aid = $data['aid'];
         $this->pvp_ready($aid, $userid);
     }
-    
+
     public function cmd_pvp_reject($fd, $data) {
         if (!$this->check_login($fd, $data)) {
             return;
@@ -463,7 +481,7 @@ class GameServer {
         $aid = $data['aid'];
         $this->pvp_reject($aid, $userid);
     }
-    
+
     public function cmd_pvp_cancel($fd, $data) {
         if (!$this->check_login($fd, $data)) {
             return;
@@ -472,8 +490,7 @@ class GameServer {
         $did = $data['did'];
         $this->pvp_cancel($userid, $did);
     }
-    
-    
+
     protected function get_fd_by_id($userid) {
         $key = Key::key_id_fd_skey($userid);
         $fd = $this->redis->hGet($key, 'fd');
@@ -567,7 +584,7 @@ class GameServer {
         $this->notice_war_wait($aid, $did);
         $this->notice_war_defence($aid, $did);
     }
-    
+
     public function pvp_reject($aid, $did) {
         $a_roomid = $this->get_roomid($aid);
         $d_roomid = $this->get_roomid($did);
@@ -589,14 +606,14 @@ class GameServer {
             $key_roomid = Key::key_room($roomid);
             $this->redis->delete($key_roomid);
             $this->redis->hDel($key_roomlist, $roomid);
-            $this->notice_war_cancel($aid, $did, $did. ' reject your fight request');
-            $this->notice_war_cancel($did, $aid, $aid. ' pvp cancel');
+            $this->notice_war_cancel($aid, $did, $did . ' reject your fight request');
+            $this->notice_war_cancel($did, $aid, $aid . ' pvp cancel');
         } else {
             $this->log("error, pvp_reject: state: $state");
             return;
         }
     }
-    
+
     public function pvp_cancel($aid, $did) {
         $a_roomid = $this->get_roomid($aid);
         $d_roomid = $this->get_roomid($did);
@@ -618,14 +635,14 @@ class GameServer {
             $key_roomid = Key::key_room($roomid);
             $this->redis->delete($key_roomid);
             $this->redis->hDel($key_roomlist, $roomid);
-            $this->notice_war_cancel($aid, $did, $did. ' pvp cancel');
-            $this->notice_war_cancel($did, $aid, $aid. ' cancel pvp request');
+            $this->notice_war_cancel($aid, $did, $did . ' pvp cancel');
+            $this->notice_war_cancel($did, $aid, $aid . ' cancel pvp request');
         } else {
             $this->log("error, pvp_cancel: state: $state");
             return;
         }
     }
-    
+
     public function notice_war_cancel($userid, $enemyid, $msg) {
         $data = array(
             'cmd' => self::cmd_pvp_cancel,
@@ -636,12 +653,30 @@ class GameServer {
         $fd = $this->get_fd_by_id($userid);
         if ($fd !== false) {
             $this->pushto($fd, $data);
-            $this->send_msg($fd, $enemyid, $msg);
-        }else{
+            $this->send_system_msg($fd, $msg);
+        } else {
             $this->log("notice_war_cancel fd not exist userid: $userid");
         }
     }
-
+    
+    public function notice_war_end($userid, $enemyid, $msg) {
+        $self = $this->get_user_war_info($userid);
+        $enemy = $this->get_user_war_info($enemyid);
+        $data = array(
+            'cmd' => self::cmd_war_end,
+            'r' => 0,
+            'msg' => '',
+            'self' => $self,
+            'enemy' => $enemy,
+        );
+        $fd = $this->get_fd_by_id($userid);
+        if ($fd !== false) {
+            $this->pushto($fd, $data);
+            $this->send_system_msg($fd, $msg);
+        } else {
+            $this->log("notice_war_end fd not exist userid: $userid");
+        }
+    }
 
     public function notice_war_defence($aid, $did) {
         $ainfo = $this->get_user_war_info($aid);
@@ -655,7 +690,7 @@ class GameServer {
         $dfd = $this->get_fd_by_id($did);
         if ($dfd !== false) {
             $this->pushto($dfd, $data);
-            $this->send_msg($dfd, $ainfo['name'], 'want to fight with you');
+            $this->send_system_msg($dfd, $ainfo['name'] . ' want to fight with you');
         }
     }
 
@@ -671,10 +706,10 @@ class GameServer {
         $afd = $this->get_fd_by_id($aid);
         if ($afd !== false) {
             $this->pushto($afd, $data);
-            $this->send_msg($afd, $dinfo['name'], 'waiting for accept');
+            $this->send_system_msg($afd, 'waiting for '.$dinfo['name'].' accept');
         }
     }
-    
+
     public function notice_ready_timeout($aid, $did) {
         $ainfo = $this->get_user_war_info($aid);
         $dinfo = $this->get_user_war_info($did);
@@ -686,15 +721,13 @@ class GameServer {
         $afd = $this->get_fd_by_id($aid);
         if ($afd !== false) {
             $this->pushto($afd, $data);
-            $this->send_msg($afd, $dinfo['name'], 'waiting timeout for accept, cancel');
+            $this->send_system_msg($afd, 'waiting timeout for '.$dinfo['name'].' accept, cancel');
         }
         $dfd = $this->get_fd_by_id($did);
         if ($dfd !== false) {
             $this->pushto($dfd, $data);
-            $this->send_msg($dfd, $ainfo['name'], 'waiting timeout for accept, cancel');
+            $this->send_system_msg($dfd, 'timeout for you accept '.$ainfo['name'].'\'s request, cancel');
         }
-        
-        
     }
 
     public function notice_war_start($userid, $enemy_info) {
@@ -768,6 +801,13 @@ class GameServer {
      * 
      * 
      */
+    
+    protected function clear_room($roomid) {
+        $key_list = Key::key_room_list();
+        $this->redis->hDel($key_list, $roomid);
+        $key_room = Key::key_room($roomid);
+        $this->redis->delete($key_room);
+    }
 
     /**
      * ai
@@ -790,23 +830,21 @@ class GameServer {
                     $this->ready_timeout($aid);
                     $this->ready_timeout($did);
 
-                    $this->redis->hDel($key_list, $roomid);
+                    $this->clear_room($roomid);
                     $this->clear_user_war_state($aid);
                     $this->clear_user_war_state($did);
-                    $this->redis->delete($key_room);
                     $this->log("remove timeout roomid: $roomid, aid: $aid, did: $did");
                     //timeout handle
                     $this->notice_ready_timeout($aid, $did);
-                } else if ($time + self::WAR_TIME_LIMIT < $current_time) {
-                    //todo check winner
-                    $this->redis->hDel($key_list, $roomid);
-
-                    $this->clear_user_war_state($aid);
-                    $this->clear_user_war_state($did);
-                    $this->redis->delete($key_room);
-                    $this->log("WAR_TIME_LIMIT timeout roomid: $roomid, aid: $aid, did: $did");
                 }
             } else if ($state == self::WAR_STATE_RUN) {
+                if ($time + self::WAR_TIME_LIMIT < $current_time) {//war timeout
+                    //todo check winner
+                    $this->clear_user_war_state($aid);
+                    $this->clear_user_war_state($did);
+                    $this->clear_room($roomid);
+                    $this->log("WAR_TIME_LIMIT timeout roomid: $roomid, aid: $aid, did: $did");
+                }
                 if ($did == 0) { // pve
                     $npcid = $room_info['npcid'];
                     $npc_info = array(
