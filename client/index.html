@@ -33,9 +33,12 @@ and open the template in the editor.
             .btn:active{
                 opacity: 0.8;
             }
-            .btn-pve, .btn-pvp{
+            .btn-pve, .btn-pvp, .btn-war-accept, .btn-war-cancel, .btn-war-reject, .btn-war-surrender{
                 padding: 20px 20px;
                 background-color: red;
+            }
+            .btn-war-accept{
+                background-color: green;
             }
             .btn-send, .btn-clear{
                 padding: 10px 20px;
@@ -119,7 +122,7 @@ and open the template in the editor.
             </div>
             <table style="width:100%">
                 <tr>
-                    <td class="left-tr"><label>ID</label></td><td   class="left-tr"><input type="text" class="input" id="userid"/></td>
+                    <td class="left-tr"><label>ID</label></td><td class="left-tr"><input type="text" class="input" id="userid"/></td>
                 </tr>
                 <tr>
                     <td class="left-tr"><label>PW</label></td><td class="right-tr"><input type="password" class="input" id="password"/></td>
@@ -135,14 +138,25 @@ and open the template in the editor.
                     <p><span>Life:</span><span id="enemy_hp">00</span></p>
                     <p><span>Mp:</span><span id="enemy_mp">00</span></p>
                     <p><span>VS:</span><span id="enemy_vs">5/2</span></p>
-                    <div style="position: absolute;right:0px;top:0px;">
+                    <div id="div-list" style="position: absolute;right:0px;top:0px;">
                         <a href="javascript:;" class="btn btn-pvp">pvp</a>
                         <a href="javascript:;" class="btn btn-pve">pve</a>
+                    </div>
+                    <div id="div-attack" class="hidden" style="position: absolute;right:0px;top:0px;">
+                        <span>waiting for accept...</span>
+                        <a href="javascript:;" class="btn btn-war-cancel">cancel</a>
+                    </div>
+                    <div id="div-defence" class="hidden" style="position: absolute;right:0px;top:0px;">
+                        <a href="javascript:;" class="btn btn-war-accept">accept</a>
+                        <a href="javascript:;" class="btn btn-war-reject">reject</a>
+                    </div>
+                    <div id="div-war" class="hidden" style="position: absolute;right:0px;top:0px;">
+                        <a href="javascript:;" class="btn btn-war-surrender">surrender</a>
                     </div>
                 </div>
 
             </div>
-            <div id="panel_msg" style="width:100%; height:200px;">
+            <div id="panel_msg" style="width:100%; height:200px;overflow-y: scroll">
                 <p>System Msg</p>
                 <ul id="msg">
                 </ul>
@@ -334,7 +348,7 @@ and open the template in the editor.
             function add_msg(data) {
                 var time = data.time;
                 var name = data.name;
-                $("#msg").append('<li>[' + name + '] (' + time + ') : <span>' + data.msg + '</span></li>');
+                $("#msg").prepend('<li>[' + name + '] (' + time + ') : <span>' + data.msg + '</span></li>');
             }
 
             function add_system(data) {
@@ -437,11 +451,8 @@ and open the template in the editor.
                 if (data.r == 0) {
                     enemyid = data.aid;
                     set_enemy_info(data.enemy);
-                    if (confirm('war_defence')) {
-                        pvp_ready(enemyid);
-                    } else {
-                        pvp_reject(enemyid);
-                    }
+                    console.log('war_defence');
+                    show_d_div();
                 }
             }
 
@@ -449,7 +460,8 @@ and open the template in the editor.
                 if (data.r == 0) {
                     enemyid = data.did;
                     set_enemy_info(data.enemy);
-                    alert('war_wait');
+                    console.log('war_wait');
+                    show_a_div();
                 }
             }
 
@@ -458,7 +470,8 @@ and open the template in the editor.
                     enemyid = data.did;
                     set_enemy_info(data.self);
                     set_enemy_info(data.enemy);
-                    alert('war_start');
+                    console.log('war_start');
+                    show_war_div();
                 }
             }
             
@@ -466,18 +479,27 @@ and open the template in the editor.
                 if (data.r == 0) {
                     set_enemy_info(data.self);
                     set_enemy_info(data.enemy);
-                    alert('cb_war_end');
+                    console.log('cb_war_end');
+                    show_list_div();
                 }
             }
 
             function ready_timeout(data) {
-                alert('ready_timeout');
+                if (data.r == 0) {
+                    set_enemy_info(data.self);
+                    set_enemy_info(data.enemy);
+                    console.log('ready_timeout');
+                    show_list_div();
+                }
             }
 
 
             function cb_pvp_cancel(data) {
                 if (data.r == 0) {
-                    alert('cb_pvp_cancel');
+                    set_enemy_info(data.self);
+                    set_enemy_info(data.enemy);
+                    console.log('cb_pvp_cancel');
+                    show_list_div();
                 }
             }
 
@@ -541,6 +563,81 @@ and open the template in the editor.
                 var data = {cmd: cmd_pvp_cancel, did: did};
                 send_with_skey(data);
             }
+            
+            function show_a_div() {
+                $("#div-attack").removeClass('hidden');
+                $("#div-defence").addClass('hidden');
+                $("#div-war").addClass('hidden');
+                $("#div-list").addClass('hidden');
+                $("#modal").addClass('hidden');
+            }
+            
+            function show_d_div() {
+                $("#div-attack").addClass('hidden');
+                $("#div-defence").removeClass('hidden');
+                $("#div-war").addClass('hidden');
+                $("#div-list").addClass('hidden');
+                $("#modal").addClass('hidden');
+            }
+            
+            function show_war_div() {
+                $("#div-attack").addClass('hidden');
+                $("#div-defence").addClass('hidden');
+                $("#div-war").removeClass('hidden');
+                $("#div-list").addClass('hidden');
+                $("#modal").addClass('hidden');
+            }
+            
+            function show_list_div() {
+                $("#div-attack").addClass('hidden');
+                $("#div-defence").addClass('hidden');
+                $("#div-war").addClass('hidden');
+                $("#div-list").removeClass('hidden');
+                $("#modal").addClass('hidden');
+            }
+            
+            function attack() {
+                var data = {cmd: cmd_attack};
+                send_with_skey(data);
+            }
+            
+            function defence() {
+                var data = {cmd: cmd_defence};
+                send_with_skey(data);
+            }
+            
+            function rest() {
+                var data = {cmd: cmd_rest};
+                send_with_skey(data);
+            }
+            
+            $(".btn-attack").click(function(){
+                attack();
+            });
+            
+            $(".btn-defence").click(function(){
+                defence();
+            });
+            
+            $(".btn-rest").click(function(){
+                rest();
+            });
+            
+            $(".btn-war-cancel").click(function(){
+                pvp_cancel(enemyid);
+            });
+            
+            $(".btn-war-accept").click(function(){
+                pvp_ready(enemyid);
+            });
+            
+            $(".btn-war-reject").click(function(){
+                pvp_reject(enemyid);
+            });
+            
+            $(".btn-war-surrender").click(function(){
+                alert('coming soon');
+            });
 
 
             $(".btn-send").click(function () {

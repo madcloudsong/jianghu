@@ -34,6 +34,8 @@ class GameServer {
     const cmd_login = 100;
     const cmd_register = 101;
     const cmd_error = 999;
+    
+    const AI_INTERVAL = 3000;
 
     public $ws;
     public $redis;
@@ -66,7 +68,7 @@ class GameServer {
 
     public function onWorkerStart($serv, $worker_id) {
         if ($worker_id == 0) {
-            $serv->tick(3000, array($this, 'onTimer'));
+            $serv->tick(self::AI_INTERVAL, array($this, 'onTimer'));
             $key = Key::key_fd_id();
             $this->redis->delete($key);
         }
@@ -116,6 +118,15 @@ class GameServer {
                 break;
             case self::cmd_pvp_cancel:
                 $this->cmd_pvp_cancel($frame->fd, $data);
+                break;
+            case self::cmd_attack:
+                $this->cmd_attack($frame->fd, $data);
+                break;
+            case self::cmd_defence:
+                $this->cmd_defence($frame->fd, $data);
+                break;
+            case self::cmd_rest:
+                $this->cmd_rest($frame->fd, $data);
                 break;
             default: $ws->push($frame->fd, json_encode(array('r' => 1, 'msg' => 'unknown cmd')));
         }
@@ -482,6 +493,34 @@ class GameServer {
         $aid = $data['aid'];
         $this->pvp_reject($aid, $userid);
     }
+    
+    public function cmd_attack($fd, $data) {
+        if (!$this->check_login($fd, $data)) {
+            return;
+        }
+        //todo
+        $userid = $data['userid'];
+        $did = $data['did'];
+        $this->pvp_cancel($userid, $did);
+    }
+    
+    public function cmd_defence($fd, $data) {
+        if (!$this->check_login($fd, $data)) {
+            return;
+        }
+        $userid = $data['userid'];
+        $did = $data['did'];
+        $this->pvp_cancel($userid, $did);
+    }
+    
+    public function cmd_rest($fd, $data) {
+        if (!$this->check_login($fd, $data)) {
+            return;
+        }
+        $userid = $data['userid'];
+        $did = $data['did'];
+        $this->pvp_cancel($userid, $did);
+    }
 
     public function cmd_pvp_cancel($fd, $data) {
         if (!$this->check_login($fd, $data)) {
@@ -744,7 +783,7 @@ class GameServer {
         $fd = $this->get_fd_by_id($userid);
         if ($fd !== false) {
             $this->pushto($fd, $data);
-            $this->send_system_msg($userid, $self_info['name'].' battle with '.$enemy_info['name'].' start');
+            $this->send_system_msg($fd, $self_info['name'].' battle with '.$enemy_info['name'].' start');
         }else{
             $this->log("notice_war_start fd not exist userid: $userid");
         }
