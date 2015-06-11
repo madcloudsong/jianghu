@@ -237,6 +237,8 @@ and open the template in the editor.
             var skey = '';
             var username = 'daxia';
             var enemyid = '';
+            
+            var wsok = false;
 
             function html_encode(str)
             {
@@ -258,6 +260,7 @@ and open the template in the editor.
             {
                 console.log("open");
                 loading = false;
+                wsok = true;
                 //ws.send("hello");
             };
             ws.onmessage = function (evt)
@@ -314,8 +317,8 @@ and open the template in the editor.
                         cb_war_end(data);
                         break;
                     case cmd_pvp_cd:
-                    cb_pvp_cd(data);
-                    break;
+                        cb_pvp_cd(data);
+                        break;
                     default:
                         console.log('unknown cmd');
                 }
@@ -323,9 +326,15 @@ and open the template in the editor.
             ws.onclose = function (evt)
             {
                 console.log("WebSocketClosed!");
+                wsok = false;
+                if (!loading) {
+                    alert('server has gone away');
+                    location.reload();
+                }
             };
             ws.onerror = function (evt)
             {
+                wsok = false;
                 console.log("WebSocketError!");
             };
 
@@ -478,7 +487,7 @@ and open the template in the editor.
                     show_war_div();
                 }
             }
-            
+
             function cb_war_cd(data) {
                 if (data.r == 0) {
                     cd = data.cd;
@@ -487,7 +496,7 @@ and open the template in the editor.
                     //todo
                 }
             }
-            
+
             function cb_war_end(data) {
                 if (data.r == 0) {
                     set_enemy_info(data.self);
@@ -576,7 +585,7 @@ and open the template in the editor.
                 var data = {cmd: cmd_pvp_cancel, did: did};
                 send_with_skey(data);
             }
-            
+
             function show_a_div() {
                 $("#div-attack").removeClass('hidden');
                 $("#div-defence").addClass('hidden');
@@ -584,7 +593,7 @@ and open the template in the editor.
                 $("#div-list").addClass('hidden');
                 $("#modal").addClass('hidden');
             }
-            
+
             function show_d_div() {
                 $("#div-attack").addClass('hidden');
                 $("#div-defence").removeClass('hidden');
@@ -592,7 +601,7 @@ and open the template in the editor.
                 $("#div-list").addClass('hidden');
                 $("#modal").addClass('hidden');
             }
-            
+
             function show_war_div() {
                 $("#div-attack").addClass('hidden');
                 $("#div-defence").addClass('hidden');
@@ -600,7 +609,7 @@ and open the template in the editor.
                 $("#div-list").addClass('hidden');
                 $("#modal").addClass('hidden');
             }
-            
+
             function show_list_div() {
                 $("#div-attack").addClass('hidden');
                 $("#div-defence").addClass('hidden');
@@ -608,47 +617,47 @@ and open the template in the editor.
                 $("#div-list").removeClass('hidden');
                 $("#modal").addClass('hidden');
             }
-            
+
             function attack() {
                 var data = {cmd: cmd_attack};
                 send_with_skey(data);
             }
-            
+
             function defence() {
                 var data = {cmd: cmd_defence};
                 send_with_skey(data);
             }
-            
+
             function rest() {
                 var data = {cmd: cmd_rest};
                 send_with_skey(data);
             }
-            
-            $(".btn-attack").click(function(){
+
+            $(".btn-attack").click(function () {
                 attack();
             });
-            
-            $(".btn-defence").click(function(){
+
+            $(".btn-defence").click(function () {
                 defence();
             });
-            
-            $(".btn-rest").click(function(){
+
+            $(".btn-rest").click(function () {
                 rest();
             });
-            
-            $(".btn-war-cancel").click(function(){
+
+            $(".btn-war-cancel").click(function () {
                 pvp_cancel(enemyid);
             });
-            
-            $(".btn-war-accept").click(function(){
+
+            $(".btn-war-accept").click(function () {
                 pvp_ready(enemyid);
             });
-            
-            $(".btn-war-reject").click(function(){
+
+            $(".btn-war-reject").click(function () {
                 pvp_reject(enemyid);
             });
-            
-            $(".btn-war-surrender").click(function(){
+
+            $(".btn-war-surrender").click(function () {
                 alert('coming soon');
             });
 
@@ -680,7 +689,12 @@ and open the template in the editor.
 
             $(".btn-login").click(function () {
                 if (loading) {
+                    alert('loading');
                     return;
+                }
+                if(!wsok) {
+                    alert('server cannot connect');
+                    location.reload();
                 }
                 var userid = $.trim($("#userid").val());
                 var password = $.trim($("#password").val());
