@@ -220,6 +220,7 @@ and open the template in the editor.
                     cmd_pvp_cancel = 20,
                     cmd_system_msg = 21,
                     cmd_war_end = 22,
+                    cmd_war_cd = 23,
                     cmd_login = 100,
                     cmd_register = 101,
                     cmd_error = 999;
@@ -312,6 +313,9 @@ and open the template in the editor.
                     case cmd_war_end:
                         cb_war_end(data);
                         break;
+                    case cmd_pvp_cd:
+                    cb_pvp_cd(data);
+                    break;
                     default:
                         console.log('unknown cmd');
                 }
@@ -472,6 +476,15 @@ and open the template in the editor.
                     set_enemy_info(data.enemy);
                     console.log('war_start');
                     show_war_div();
+                }
+            }
+            
+            function cb_war_cd(data) {
+                if (data.r == 0) {
+                    cd = data.cd;
+                    cmd = data.cmd;
+                    console.log('cb_war_cd');
+                    //todo
                 }
             }
             

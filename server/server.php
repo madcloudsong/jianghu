@@ -31,10 +31,11 @@ class GameServer {
     const cmd_pvp_cancel = 20;
     const cmd_system_msg = 21;
     const cmd_war_end = 22;
+    const cmd_war_cd = 23;
+    
     const cmd_login = 100;
     const cmd_register = 101;
     const cmd_error = 999;
-    
     const AI_INTERVAL = 3000;
 
     public $ws;
@@ -427,7 +428,7 @@ class GameServer {
         }
         $this->ws->push($fd, json_encode($result));
     }
-    
+
     public function send_system_msg($fd, $msg, $self = null, $enemy = null) {
         $result = array(
             'r' => 0,
@@ -451,6 +452,18 @@ class GameServer {
     const WAR_STATE_END = 3;
     const TIMEOUT = 10;
     const WAR_TIME_LIMIT = 60;
+    
+    const CD_ATTACK = 1;
+    const CD_DEFENCE = 2;
+    const CD_REST = 3;
+    
+    const CD_BIAS = 0.2;
+    
+    protected $cd_map = array(
+        self::cmd_attack => self::CD_ATTACK,
+        self::cmd_defence => self::CD_DEFENCE,
+        self::cmd_rest => self::CD_REST,
+    );
 
     public function cmd_pvp_list($fd, $data) {
         if (!$this->check_login($fd, $data)) {
@@ -493,34 +506,137 @@ class GameServer {
         $aid = $data['aid'];
         $this->pvp_reject($aid, $userid);
     }
-    
+
+    //battle
     public function cmd_attack($fd, $data) {
         if (!$this->check_login($fd, $data)) {
             return;
         }
-        //todo
         $userid = $data['userid'];
-        $did = $data['did'];
-        $this->pvp_cancel($userid, $did);
+        $this->battle(self::cmd_attack, $userid);
     }
-    
+
     public function cmd_defence($fd, $data) {
         if (!$this->check_login($fd, $data)) {
             return;
         }
         $userid = $data['userid'];
-        $did = $data['did'];
-        $this->pvp_cancel($userid, $did);
+        $this->battle(self::cmd_defence, $userid);
     }
-    
+
     public function cmd_rest($fd, $data) {
         if (!$this->check_login($fd, $data)) {
             return;
         }
         $userid = $data['userid'];
-        $did = $data['did'];
-        $this->pvp_cancel($userid, $did);
+        $this->battle(self::cmd_rest, $userid);
     }
+
+    public function battle($cmd, $userid) {
+        //check roomid if in battle
+        $roomid = $this->get_roomid($userid);
+        if ($roomid === false) {
+            $this->log("battle error no room id userid: $userid");
+            return;
+        }
+
+        //check room state if running
+        $state = $this->get_room_state($roomid);
+        if ($state !== self::WAR_STATE_RUN) {
+            $this->log("battle error state error userid: $userid, roomid : $roomid, state : $state");
+            return;
+        }
+        //cal enemyid
+        $roominfo = $this->get_room_info($roomid);
+        $aid = $roominfo['aid'];
+        $did = $roominfo['did'];
+        if ($aid == $userid) {
+            $enemyid = $did;
+        } else if ($did == $userid) {
+            $enemyid = $aid;
+        }else{
+            $this->log("battle error no room id userid: $userid, aid: $aid, did: $did");
+            return ;
+        }
+        
+        $key_timeout = Key::key_timeout($userid, $cmd);
+        $skill_time = isset($roominfo[$key_timeout]) ?$roominfo[$key_timeout] : 0 ;
+        $cd = $this->cd_map($cmd);
+        $current_time = microtime(true);
+        if($skill_time + $cd - self::CD_BIAS > $current_time) {
+            $this->log("battle error cd userid: $userid, aid: $aid, did: $did, cmd: $cmd, skilltime: $skill_time, cd: $cd, ctime: $current_time");
+            return;
+        }
+        //battle logic maybe need lock
+        $self_info = $this->get_user_war_info($userid);
+        $enemy_info = $this->get_user_war_info($enemyid);
+        if($cmd == self::cmd_attack) {
+            $this->notice_battle_msg($userid, $self_info['name'], 'attack', $self_info, $enemy_info);
+            $this->notice_battle_msg($enemyid, $self_info['name'], 'attack', $enemy_info, $self_info);
+        }else if($cmd == self::cmd_defence) {
+            $this->notice_battle_msg($userid, $self_info['name'], 'cmd_defence', $self_info, $enemy_info);
+            $this->notice_battle_msg($enemyid, $self_info['name'], 'cmd_defence', $enemy_info, $self_info);
+        }else if($cmd == self::cmd_rest) {
+            $this->notice_battle_msg($userid, $self_info['name'], 'cmd_rest', $self_info, $enemy_info);
+            $this->notice_battle_msg($enemyid, $self_info['name'], 'cmd_rest', $enemy_info, $self_info);
+        }else{
+            $this->log("battle error no cmd: $cmd, userid: $userid, aid: $aid, did: $did");
+        }
+        //update skill cd
+        $this->notice_skill_cd($userid, $cmd, $cd);
+        $key_room = Key::key_room($roomid);
+        $this->redis->hSet($key_room, $key_timeout, $current_time);
+    }
+    
+    public function notice_battle_msg($userid, $fromname, $msg, $selfinfo, $enemyinfo) {
+        $fd = $this->get_fd_by_id($userid);
+        if ($fd !== false) {
+            $this->send_msg($fd, $fromname, $msg, $selfinfo, $enemyinfo);
+        } else {
+            $this->log("notice_battle_msg fd not exist userid: $userid");
+        }
+    }
+    
+    public function notice_skill_cd($userid, $cmd, $cd) {
+        $data = array(
+            'cmd' => self::cmd_war_cd,
+            'r' => 0,
+            'msg' => '',
+            'cmd' => $cmd,
+            'cd' => $cd,
+        );
+        $fd = $this->get_fd_by_id($userid);
+        if ($fd !== false) {
+            $this->pushto($fd, $data);
+        } else {
+            $this->log("notice_skill_cd fd not exist userid: $userid");
+        }
+    }
+    
+
+    protected function get_enemy_id($userid) {
+        $roomid = $this->get_roomid($userid);
+        if ($roomid !== false) {
+            $roominfo = $this->get_room_info($roomid);
+            $aid = $roominfo['aid'];
+            $did = $roominfo['did'];
+            if ($aid == $userid) {
+                return $did;
+            } else if ($did == $userid) {
+                return $aid;
+            } else {
+                $this->log('get_enemy_id error userid:' . $userid . ' | aid:' . $aid . ' | did:' . $did);
+            }
+        }
+        return false;
+    }
+
+    protected function get_room_info($roomid) {
+        $key = Key::key_room($roomid);
+        return $this->redis->hGetAll($key);
+    }
+
+    ///////////
 
     public function cmd_pvp_cancel($fd, $data) {
         if (!$this->check_login($fd, $data)) {
@@ -694,7 +810,7 @@ class GameServer {
             $this->log("notice_war_cancel fd not exist userid: $userid");
         }
     }
-    
+
     public function notice_war_end($userid, $enemyid, $msg) {
         $self = $this->get_user_war_info($userid);
         $enemy = $this->get_user_war_info($enemyid);
@@ -727,7 +843,7 @@ class GameServer {
         if ($dfd !== false) {
             $this->pushto($dfd, $data);
             $this->send_system_msg($dfd, $ainfo['name'] . ' want to fight with you');
-        }else{
+        } else {
             $this->log("notice_war_defence fd not exist aid: $aid, did: $did");
         }
     }
@@ -744,8 +860,8 @@ class GameServer {
         $afd = $this->get_fd_by_id($aid);
         if ($afd !== false) {
             $this->pushto($afd, $data);
-            $this->send_system_msg($afd, 'waiting for '.$dinfo['name'].' accept');
-        }else{
+            $this->send_system_msg($afd, 'waiting for ' . $dinfo['name'] . ' accept');
+        } else {
             $this->log("notice_war_wait fd not exist aid: $aid, did: $did");
         }
     }
@@ -761,13 +877,13 @@ class GameServer {
         $afd = $this->get_fd_by_id($aid);
         if ($afd !== false) {
             $this->pushto($afd, $data);
-            $this->send_system_msg($afd, 'waiting timeout for '.$dinfo['name'].' accept, cancel');
+            $this->send_system_msg($afd, 'waiting timeout for ' . $dinfo['name'] . ' accept, cancel');
         }
         $dfd = $this->get_fd_by_id($did);
         if ($dfd !== false) {
             $this->pushto($dfd, $data);
-            $this->send_system_msg($dfd, 'timeout for you accept '.$ainfo['name'].'\'s request, cancel');
-        }else{
+            $this->send_system_msg($dfd, 'timeout for you accept ' . $ainfo['name'] . '\'s request, cancel');
+        } else {
             $this->log("notice_ready_timeout fd not exist aid: $aid, did: $did");
         }
     }
@@ -783,8 +899,8 @@ class GameServer {
         $fd = $this->get_fd_by_id($userid);
         if ($fd !== false) {
             $this->pushto($fd, $data);
-            $this->send_system_msg($fd, $self_info['name'].' battle with '.$enemy_info['name'].' start');
-        }else{
+            $this->send_system_msg($fd, $self_info['name'] . ' battle with ' . $enemy_info['name'] . ' start');
+        } else {
             $this->log("notice_war_start fd not exist userid: $userid");
         }
     }
@@ -842,7 +958,7 @@ class GameServer {
             return;
         }
     }
-    
+
     /**
      * check whether the room of user is in running state
      * @param string $userid
@@ -850,13 +966,13 @@ class GameServer {
      */
     public function check_war_running($userid) {
         $roomid = $this->get_roomid($userid);
-        if($roomid !== false) {
+        if ($roomid !== false) {
             $state = $this->get_room_state($roomid);
             return $state === self::WAR_STATE_RUN;
         }
         return false;
     }
-    
+
     public function get_room_state($roomid) {
         $key = Key::key_room_list();
         $state = $this->redis->hGet($key, $roomid);
@@ -879,7 +995,7 @@ class GameServer {
      * 
      * 
      */
-    
+
     protected function clear_room($roomid) {
         $key_list = Key::key_room_list();
         $this->redis->hDel($key_list, $roomid);
@@ -927,8 +1043,7 @@ class GameServer {
                     $this->notice_war_end($aid, $did, $toamsg);
                     $this->notice_war_end($did, $aid, $todmsg);
                     $this->log("notice_war_end roomid: $roomid, aid: $aid, did: $did, toamsg: $toamsg");
-                }
-                else if ($did == 0) { // pve
+                } else if ($did == 0) { // pve
                     $npcid = $room_info['npcid'];
                     $npc_info = array(
                         'name' => 'npc',

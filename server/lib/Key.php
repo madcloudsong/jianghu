@@ -35,4 +35,8 @@ class Key {
     public static function key_room_id($userid) {
         return 'key_room_id' . $userid;
     }
+    
+    public static function key_timeout($userid, $cmd) {
+        return 'key_timeout' . $userid . '-'. $cmd;
+    }
 }
