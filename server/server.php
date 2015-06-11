@@ -561,7 +561,7 @@ class GameServer {
         
         $key_timeout = Key::key_timeout($userid, $cmd);
         $skill_time = isset($roominfo[$key_timeout]) ?$roominfo[$key_timeout] : 0 ;
-        $cd = $this->cd_map($cmd);
+        $cd = $this->cd_map[$cmd];
         $current_time = microtime(true);
         if($skill_time + $cd - self::CD_BIAS > $current_time) {
             $this->log("battle error cd userid: $userid, aid: $aid, did: $did, cmd: $cmd, skilltime: $skill_time, cd: $cd, ctime: $current_time");
