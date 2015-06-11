@@ -542,7 +542,7 @@ class GameServer {
 
         //check room state if running
         $state = $this->get_room_state($roomid);
-        if ($state !== self::WAR_STATE_RUN) {
+        if ($state != self::WAR_STATE_RUN) {
             $this->log("battle error state error userid: $userid, roomid : $roomid, state : $state");
             return;
         }
