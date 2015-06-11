@@ -602,7 +602,7 @@ class GameServer {
             'cmd' => self::cmd_war_cd,
             'r' => 0,
             'msg' => '',
-            'cmd' => $cmd,
+            'skill' => $cmd,
             'cd' => $cd,
         );
         $fd = $this->get_fd_by_id($userid);
