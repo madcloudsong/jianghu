@@ -576,18 +576,27 @@ class GameServer {
             $this->log("battle error cd userid: $userid, aid: $aid, did: $did, cmd: $cmd, skilltime: $skill_time, cd: $cd, ctime: $current_time");
             return;
         }
-
-        $key_buff = Key::key_buff($userid, $cmd);
-        $buff_map = array();
+        
+        $self_buff_map = array();
+        $enemy_buff_map = array();
         foreach (array(self::cmd_attack, self::cmd_defence, self::cmd_rest) as $i_cmd) {
-            $i_key_buff = Key::key_buff($userid, $i_cmd);
-            $buff_time = isset($roominfo[$i_key_buff]) ? $roominfo[$i_key_buff] : 0;
+            $self_key_buff = Key::key_buff($userid, $i_cmd);
+            $buff_time = isset($roominfo[$self_key_buff]) ? $roominfo[$self_key_buff] : 0;
             if ($buff_time >= $current_time) {
-                $buff_map[$i_cmd] = true;
+                $self_buff_map[$i_cmd] = true;
             } else {
-                $buff_map[$i_cmd] = false;
+                $self_buff_map[$i_cmd] = false;
+            }
+            
+            $enemy_key_buff = Key::key_buff($enemyid, $i_cmd);
+            $buff_time = isset($roominfo[$enemy_key_buff]) ? $roominfo[$enemy_key_buff] : 0;
+            if ($buff_time >= $current_time) {
+                $enemy_buff_map[$i_cmd] = true;
+            } else {
+                $enemy_buff_map[$i_cmd] = false;
             }
         }
+        
         $this->log("buff map: $cmd, userid: $userid, aid: $aid, did: $did" .var_export($roominfo, true) .  var_export($buff_map, true));
 
         //todo battle logic maybe need lock
@@ -595,6 +604,7 @@ class GameServer {
         $enemy_info = $this->get_user_war_info($enemyid);
         $self_change = array();
         $enemy_change = array();
+        $buff = 0;
         if ($cmd == self::cmd_attack) {
             $cost = 20;
             $self_info['mp'] -= $cost;
@@ -603,7 +613,7 @@ class GameServer {
                 $this->log("cmd_attack cost not enough: $cmd, userid: $userid, aid: $aid, did: $did");
                 return;
             }
-            if ($buff_map[self::cmd_defence]) {// enemy in defence
+            if ($enemy_buff_map[self::cmd_defence]) {// enemy in defence
                 $recover_hp_min = 20;
                 $recover_mp_min = 20;
                 $recover_hp = $enemy_info['max_hp'] / 5 > $recover_hp_min ? ceil($enemy_info['max_hp'] / 5) : $recover_hp_min;
@@ -683,6 +693,7 @@ class GameServer {
         //update skill cd
         $this->notice_skill_cd($userid, $cmd, $cd);
         $key_room = Key::key_room($roomid);
+        $key_buff = Key::key_buff($userid, $cmd);
         $this->redis->hMset($key_room, array($key_timeout => $current_time + $cd, $key_buff => $current_time + $buff));
     }
 
@@ -1194,7 +1205,7 @@ class GameServer {
         $this->redis->hMset($key_loser, $loser_change);
         $winner_msg = "reward: max_hp increase by $winner_hp_change, max_mp increase by $winner_mp_change";
         $this->send_system_msg_by_id($winnerid, $winner_msg);
-        $loser_msg = "publish: max_hp decrease by $loser_hp_change, max_mp decrease by $loser_mp_change";
+        $loser_msg = "punish: max_hp decrease by $loser_hp_change, max_mp decrease by $loser_mp_change";
         $this->send_system_msg_by_id($loserid, $loser_msg);
         $this->log("pvp_reward | winnerid: $winnerid, loserid: $loserid");
     }
