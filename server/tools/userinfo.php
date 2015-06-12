@@ -7,8 +7,8 @@
  * and open the template in the editor.
  */
 
-require __DIR__.'../config/redisconfig.php';
-require __DIR__.'../lib/Key.php';
+require __DIR__.'/../config/redisconfig.php';
+require __DIR__.'/../lib/Key.php';
 
 $userid = $argv['1'];
 $redis = new redis();
