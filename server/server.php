@@ -563,19 +563,70 @@ class GameServer {
         $cd = $this->cd_map[$cmd];
         $current_time = microtime(true);
         if ($skill_time + $cd - self::CD_BIAS > $current_time) {
+            $this->notice_skill_cd($userid, $cmd, $skill_time + $cd - $current_time);
             $this->log("battle error cd userid: $userid, aid: $aid, did: $did, cmd: $cmd, skilltime: $skill_time, cd: $cd, ctime: $current_time");
             return;
         }
-        //battle logic maybe need lock
+        //todo battle logic maybe need lock
         $self_info = $this->get_user_war_info($userid);
         $enemy_info = $this->get_user_war_info($enemyid);
+        $self_change = array();
+        $enemy_change = array();
         if ($cmd == self::cmd_attack) {
+            $cost = 20;
+            if ($self_info['mp'] < $cost) {
+                $this->log("cmd_attack cost not enough: $cmd, userid: $userid, aid: $aid, did: $did");
+                return;
+            }
+            $damage = 20;
+            $enemy_info['hp'] -= $damage;
+            if ($enemy_info['hp'] <= 0) {//war end
+                $enemy_info['hp'] = 1;
+                $this->pvp_reward($userid, $self_info, $enemyid, $enemy_info);
+                $this->reset_user_info($aid);
+                $this->reset_user_info($did);
+                $this->clear_user_war_state($aid);
+                $this->clear_user_war_state($did);
+                $this->clear_room($roomid);
+                $this->log("WAR_END after attack roomid: $roomid, aid: $aid, did: $did");
+                $toamsg = "war end, you win";
+                $todmsg = "war end, {$self_info['name']} win the war, you lose";
+                $this->notice_war_end($userid, $enemyid, $toamsg);
+                $this->notice_war_end($enemyid, $userid, $todmsg);
+                return;
+            }
+            $enemy_change['hp'] = $enemy_info['hp'];
+            $self_info['mp'] -= $cost;
+            $self_change['mp'] = $self_info['mp'];
+            $this->update_user($enemyid, $enemy_change);
+            $this->update_user($userid, $self_change);
             $this->notice_battle_msg($userid, $self_info['name'], 'attack', $self_info, $enemy_info);
             $this->notice_battle_msg($enemyid, $self_info['name'], 'attack', $enemy_info, $self_info);
         } else if ($cmd == self::cmd_defence) {
+            $cost = 20;
+            if ($self_info['mp'] < $cost) {
+                $this->log("cmd_defence cost not enough: $cmd, userid: $userid, aid: $aid, did: $did");
+                return;
+            }
+            $self_info['mp'] -= $cost;
+            $self_change['mp'] = $self_info['mp'];
+            $this->update_user($userid, $self_change);
             $this->notice_battle_msg($userid, $self_info['name'], 'cmd_defence', $self_info, $enemy_info);
             $this->notice_battle_msg($enemyid, $self_info['name'], 'cmd_defence', $enemy_info, $self_info);
         } else if ($cmd == self::cmd_rest) {
+            $recover_hp = 40;
+            $recover_mp = 40;
+            $self_info['hp'] += $recover_hp;
+            if ($self_info['hp'] > $self_info['max_hp']) {
+                $self_info['hp'] = $self_info['max_hp'];
+            }
+            $self_change['hp'] = $self_info['hp'];
+            if ($self_info['mp'] > $self_info['max_mp']) {
+                $self_info['mp'] = $self_info['max_mp'];
+            }
+            $self_info['mp'] += $recover_mp;
+            $self_change['mp'] = $self_info['mp'];
+            $this->update_user($userid, $self_change);
             $this->notice_battle_msg($userid, $self_info['name'], 'cmd_rest', $self_info, $enemy_info);
             $this->notice_battle_msg($enemyid, $self_info['name'], 'cmd_rest', $enemy_info, $self_info);
         } else {
@@ -585,6 +636,11 @@ class GameServer {
         $this->notice_skill_cd($userid, $cmd, $cd);
         $key_room = Key::key_room($roomid);
         $this->redis->hSet($key_room, $key_timeout, $current_time);
+    }
+
+    protected function update_user($userid, $userchange) {
+        $key = Key::key_user($userid);
+        $this->redis->hMset($key, $userchange);
     }
 
     public function notice_battle_msg($userid, $fromname, $msg, $selfinfo, $enemyinfo) {
@@ -607,6 +663,16 @@ class GameServer {
         $fd = $this->get_fd_by_id($userid);
         if ($fd !== false) {
             $this->pushto($fd, $data);
+            if ($cmd == self::cmd_attack) {
+                $skill_name = 'attack';
+            } else if ($cmd == self::cmd_defence) {
+                $skill_name = 'defence';
+            } else if ($cmd == self::cmd_rest) {
+                $skill_name = 'rest';
+            } else {
+                
+            }
+            $this->send_system_msg($fd, 'skill_name is in cd, still ' . $cd . 's');
         } else {
             $this->log("notice_skill_cd fd not exist userid: $userid");
         }
