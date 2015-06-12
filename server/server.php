@@ -427,6 +427,16 @@ class GameServer {
         }
         $this->ws->push($fd, json_encode($result));
     }
+    
+    public function send_system_msg_by_id($userid, $msg, $self = null, $enemy = null) {
+        $fd = $this->get_fd_by_id($userid);
+        if ($fd !== false) {
+            $this->send_system_msg($fd, $msg, $self, $enemy);
+        } else {
+            $this->log("send_system_msg_by_id fd not exist userid: $userid");
+        }
+        
+    }
 
     public function send_system_msg($fd, $msg, $self = null, $enemy = null) {
         $result = array(
@@ -600,8 +610,8 @@ class GameServer {
             $self_change['mp'] = $self_info['mp'];
             $this->update_user($enemyid, $enemy_change);
             $this->update_user($userid, $self_change);
-            $this->notice_battle_msg($userid, $self_info['name'], 'attack', $self_info, $enemy_info);
-            $this->notice_battle_msg($enemyid, $self_info['name'], 'attack', $enemy_info, $self_info);
+            $this->notice_battle_msg($userid, $self_info['name'], "attack damage $damage", $self_info, $enemy_info);
+            $this->notice_battle_msg($enemyid, $self_info['name'], "attack damage $damage", $enemy_info, $self_info);
         } else if ($cmd == self::cmd_defence) {
             $cost = 20;
             if ($self_info['mp'] < $cost) {
@@ -627,8 +637,8 @@ class GameServer {
             $self_info['mp'] += $recover_mp;
             $self_change['mp'] = $self_info['mp'];
             $this->update_user($userid, $self_change);
-            $this->notice_battle_msg($userid, $self_info['name'], 'cmd_rest', $self_info, $enemy_info);
-            $this->notice_battle_msg($enemyid, $self_info['name'], 'cmd_rest', $enemy_info, $self_info);
+            $this->notice_battle_msg($userid, $self_info['name'], "cmd_rest, hp+ $recover_hp, mp+ $recover_mp", $self_info, $enemy_info);
+            $this->notice_battle_msg($enemyid, $self_info['name'], "cmd_rest, hp+ $recover_hp, mp+ $recover_mp", $enemy_info, $self_info);
         } else {
             $this->log("battle error no cmd: $cmd, userid: $userid, aid: $aid, did: $did");
         }
@@ -673,6 +683,7 @@ class GameServer {
                 
             }
             if ($sendmsg) {
+                $cd = round($cd, 2);
                 $this->send_system_msg($fd, 'skill_name is in cd, still ' . $cd . 's');
             }
         } else {
@@ -1110,21 +1121,33 @@ class GameServer {
             'lose' => $loser_info['lose'] + 1,
         );
         if ($winner_info['max_hp'] >= $loser_info['max_hp']) {
-            $winner_change['max_hp'] = $winner_info['max_hp'] + mt_rand(3, 6);
-            $loser_change['max_hp'] = $loser_info['max_hp'] - mt_rand(1, 2);
+            $winner_hp_change = mt_rand(3, 6);
+            $loser_hp_change = mt_rand(1, 2);
+            $winner_change['max_hp'] = $winner_hp_change;
+            $loser_change['max_hp'] = $loser_hp_change;
         } else {
-            $winner_change['max_hp'] = $winner_info['max_hp'] + mt_rand(5, 10);
-            $loser_change['max_hp'] = $loser_info['max_hp'] - mt_rand(3, 6);
+            $winner_hp_change = mt_rand(5, 10);
+            $loser_hp_change = mt_rand(3, 6);
+            $winner_change['max_hp'] = $winner_hp_change;
+            $loser_change['max_hp'] = $loser_hp_change;
         }
         if ($winner_info['max_mp'] >= $loser_info['max_mp']) {
-            $winner_change['max_mp'] = $winner_info['max_mp'] + mt_rand(3, 6);
-            $loser_change['max_mp'] = $loser_info['max_mp'] - mt_rand(1, 2);
+            $winner_mp_change = mt_rand(3, 6);
+            $loser_mp_change = mt_rand(1, 2);
+            $winner_change['max_mp'] = $winner_mp_change;
+            $loser_change['max_mp'] = $loser_mp_change;
         } else {
-            $winner_change['max_mp'] = $winner_info['max_mp'] + mt_rand(5, 10);
-            $loser_change['max_mp'] = $loser_info['max_mp'] - mt_rand(3, 6);
+            $winner_mp_change = mt_rand(5, 10);
+            $loser_mp_change = mt_rand(3, 6);
+            $winner_change['max_mp'] = $winner_mp_change;
+            $loser_change['max_mp'] = $loser_mp_change;
         }
         $this->redis->hMset($key_winner, $winner_change);
         $this->redis->hMset($key_loser, $loser_change);
+        $winner_msg = "reward: max_hp increase by $winner_hp_change, max_mp increase by $winner_mp_change";
+        $this->send_system_msg_by_id($winnerid, $winner_msg);
+        $loser_msg = "publish: max_hp decrease by $loser_hp_change, max_mp decrease by $loser_mp_change";
+        $this->send_system_msg_by_id($loserid, $loser_msg);
         $this->log("pvp_reward | winnerid: $winnerid, loserid: $loserid");
     }
 
