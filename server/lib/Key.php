@@ -39,4 +39,8 @@ class Key {
     public static function key_timeout($userid, $cmd) {
         return 'key_timeout' . $userid . '-'. $cmd;
     }
+    
+    public static function key_buff($userid, $cmd) {
+        return 'key_buff' . $userid . '-'. $cmd;
+    }
 }

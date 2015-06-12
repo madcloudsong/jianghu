@@ -427,7 +427,7 @@ class GameServer {
         }
         $this->ws->push($fd, json_encode($result));
     }
-    
+
     public function send_system_msg_by_id($userid, $msg, $self = null, $enemy = null) {
         $fd = $this->get_fd_by_id($userid);
         if ($fd !== false) {
@@ -435,7 +435,6 @@ class GameServer {
         } else {
             $this->log("send_system_msg_by_id fd not exist userid: $userid");
         }
-        
     }
 
     public function send_system_msg($fd, $msg, $self = null, $enemy = null) {
@@ -572,11 +571,24 @@ class GameServer {
         $skill_time = isset($roominfo[$key_timeout]) ? $roominfo[$key_timeout] : 0;
         $cd = $this->cd_map[$cmd];
         $current_time = microtime(true);
-        if ($skill_time + $cd - self::CD_BIAS > $current_time) {
-            $this->notice_skill_cd($userid, $cmd, $skill_time + $cd - $current_time, true);
+        if ($skill_time - self::CD_BIAS > $current_time) {
+            $this->notice_skill_cd($userid, $cmd, $skill_time - $current_time, true);
             $this->log("battle error cd userid: $userid, aid: $aid, did: $did, cmd: $cmd, skilltime: $skill_time, cd: $cd, ctime: $current_time");
             return;
         }
+
+        $key_buff = Key::key_buff($userid, $cmd);
+        $buff_map = array();
+        foreach (array(self::cmd_attack, self::cmd_defence, self::cmd_rest) as $i_cmd) {
+            $i_key_buff = Key::key_buff($userid, $i_cmd);
+            $buff_time = isset($roominfo[$i_key_buff]) ? $roominfo[$i_key_buff] : 0;
+            if ($buff_time >= $current_time) {
+                $buff_map[$i_cmd] = true;
+            } else {
+                $buff_map[$i_cmd] = false;
+            }
+        }
+
         //todo battle logic maybe need lock
         $self_info = $this->get_user_war_info($userid);
         $enemy_info = $this->get_user_war_info($enemyid);
@@ -584,34 +596,54 @@ class GameServer {
         $enemy_change = array();
         if ($cmd == self::cmd_attack) {
             $cost = 20;
+            $self_info['mp'] -= $cost;
+            $self_change['mp'] = $self_info['mp'];
             if ($self_info['mp'] < $cost) {
                 $this->log("cmd_attack cost not enough: $cmd, userid: $userid, aid: $aid, did: $did");
                 return;
             }
-            $damage = 20;
-            $enemy_info['hp'] -= $damage;
-            if ($enemy_info['hp'] <= 0) {//war end
-                $enemy_info['hp'] = 1;
-                $this->pvp_reward($userid, $self_info, $enemyid, $enemy_info);
-                $this->reset_user_info($aid);
-                $this->reset_user_info($did);
-                $this->clear_user_war_state($aid);
-                $this->clear_user_war_state($did);
-                $this->clear_room($roomid);
-                $this->log("WAR_END after attack roomid: $roomid, aid: $aid, did: $did");
-                $toamsg = "war end, you win";
-                $todmsg = "war end, {$self_info['name']} win the war, you lose";
-                $this->notice_war_end($userid, $enemyid, $toamsg);
-                $this->notice_war_end($enemyid, $userid, $todmsg);
-                return;
+            if ($buff_map[self::cmd_defence]) {// enemy in defence
+                $recover_hp_min = 20;
+                $recover_mp_min = 20;
+                $recover_hp = $enemy_info['max_hp'] / 5 > $recover_hp_min ? ceil($enemy_info['max_hp'] / 5) : $recover_hp_min;
+                $recover_mp = $enemy_info['max_mp'] / 5 > $recover_mp_min ? ceil($enemy_info['max_mp'] / 5) : $recover_mp_min;
+                $enemy_info['hp'] += $recover_hp;
+                if ($enemy_info['hp'] > $enemy_info['max_hp']) {
+                    $enemy_info['hp'] = $enemy_info['max_hp'];
+                }
+                $enemy_change['hp'] = $enemy_info['hp'];
+                
+                $enemy_info['mp'] += $recover_mp;
+                if ($enemy_info['mp'] > $enemy_info['max_mp']) {
+                    $enemy_info['mp'] = $enemy_info['max_mp'];
+                }
+                $enemy_change['mp'] = $enemy_info['mp'];
+                $this->notice_battle_msg($userid, $self_info['name'], "attack but {$enemy_info['name']} defence, {$enemy_info['name']} hp+ $recover_hp, mp+ $recover_mp", $self_info, $enemy_info);
+                $this->notice_battle_msg($enemyid, $self_info['name'], "attack but {$enemy_info['name']} defence, {$enemy_info['name']} hp+ $recover_hp, mp+ $recover_mp", $enemy_info, $self_info);
+            } else {
+                $damage = ceil($self_info['mp_max'] * $self_info['mp_max'] / $enemy_info['hp_max'] / 5);
+                $enemy_info['hp'] -= $damage;
+                if ($enemy_info['hp'] <= 0) {//war end
+                    $enemy_info['hp'] = 1;
+                    $this->pvp_reward($userid, $self_info, $enemyid, $enemy_info);
+                    $this->reset_user_info($aid);
+                    $this->reset_user_info($did);
+                    $this->clear_user_war_state($aid);
+                    $this->clear_user_war_state($did);
+                    $this->clear_room($roomid);
+                    $this->log("WAR_END after attack roomid: $roomid, aid: $aid, did: $did");
+                    $toamsg = "war end, you win";
+                    $todmsg = "war end, {$self_info['name']} win the war, you lose";
+                    $this->notice_war_end($userid, $enemyid, $toamsg);
+                    $this->notice_war_end($enemyid, $userid, $todmsg);
+                    return;
+                }
+                $enemy_change['hp'] = $enemy_info['hp'];
+                $this->notice_battle_msg($userid, $self_info['name'], "attack damage $damage", $self_info, $enemy_info);
+                $this->notice_battle_msg($enemyid, $self_info['name'], "attack damage $damage", $enemy_info, $self_info);
             }
-            $enemy_change['hp'] = $enemy_info['hp'];
-            $self_info['mp'] -= $cost;
-            $self_change['mp'] = $self_info['mp'];
             $this->update_user($enemyid, $enemy_change);
             $this->update_user($userid, $self_change);
-            $this->notice_battle_msg($userid, $self_info['name'], "attack damage $damage", $self_info, $enemy_info);
-            $this->notice_battle_msg($enemyid, $self_info['name'], "attack damage $damage", $enemy_info, $self_info);
         } else if ($cmd == self::cmd_defence) {
             $cost = 20;
             if ($self_info['mp'] < $cost) {
@@ -620,21 +652,26 @@ class GameServer {
             }
             $self_info['mp'] -= $cost;
             $self_change['mp'] = $self_info['mp'];
+            $buff = mt_rand(200, 300) / 100;
+
             $this->update_user($userid, $self_change);
-            $this->notice_battle_msg($userid, $self_info['name'], 'cmd_defence', $self_info, $enemy_info);
-            $this->notice_battle_msg($enemyid, $self_info['name'], 'cmd_defence', $enemy_info, $self_info);
+            $this->notice_battle_msg($userid, $self_info['name'], 'cmd_defence last' . $buff . 's', $self_info, $enemy_info);
+            $this->notice_battle_msg($enemyid, $self_info['name'], 'cmd_defence last' . $buff . 's', $enemy_info, $self_info);
         } else if ($cmd == self::cmd_rest) {
-            $recover_hp = 40;
-            $recover_mp = 40;
+            $recover_hp_min = 40;
+            $recover_mp_min = 40;
+            $recover_hp = $self_info['max_hp'] / 4 > $recover_hp_min ? ceil($self_info['max_hp'] / 4) : $recover_hp_min;
+            $recover_mp = $self_info['max_mp'] / 3 > $recover_mp_min ? ceil($self_info['max_mp'] / 3) : $recover_mp_min;
             $self_info['hp'] += $recover_hp;
             if ($self_info['hp'] > $self_info['max_hp']) {
                 $self_info['hp'] = $self_info['max_hp'];
             }
             $self_change['hp'] = $self_info['hp'];
+            
+            $self_info['mp'] += $recover_mp;
             if ($self_info['mp'] > $self_info['max_mp']) {
                 $self_info['mp'] = $self_info['max_mp'];
             }
-            $self_info['mp'] += $recover_mp;
             $self_change['mp'] = $self_info['mp'];
             $this->update_user($userid, $self_change);
             $this->notice_battle_msg($userid, $self_info['name'], "cmd_rest, hp+ $recover_hp, mp+ $recover_mp", $self_info, $enemy_info);
@@ -645,7 +682,7 @@ class GameServer {
         //update skill cd
         $this->notice_skill_cd($userid, $cmd, $cd);
         $key_room = Key::key_room($roomid);
-        $this->redis->hSet($key_room, $key_timeout, $current_time);
+        $this->redis->hMset($key_room, array($key_timeout => $current_time + $cd, $key_buff => $current_time + $buff));
     }
 
     protected function update_user($userid, $userchange) {
@@ -1112,6 +1149,8 @@ class GameServer {
     }
 
     protected function pvp_reward($winnerid, $winner_info, $loserid, $loser_info) {
+        $hp_min = 50;
+        $mp_min = 50;
         $key_winner = key::key_user($winnerid);
         $key_loser = Key::key_user($loserid);
         $winner_change = array(
@@ -1124,23 +1163,31 @@ class GameServer {
             $winner_hp_change = mt_rand(3, 6);
             $loser_hp_change = mt_rand(1, 2);
             $winner_change['max_hp'] = $winner_info['max_hp'] + $winner_hp_change;
-            $loser_change['max_hp'] = $loser_info['max_hp'] + $loser_hp_change;
+            $loser_change['max_hp'] = $loser_info['max_hp'] - $loser_hp_change;
         } else {
             $winner_hp_change = mt_rand(5, 10);
             $loser_hp_change = mt_rand(3, 6);
             $winner_change['max_hp'] = $winner_info['max_hp'] + $winner_hp_change;
-            $loser_change['max_hp'] = $loser_info['max_hp'] + $loser_hp_change;
+            $loser_change['max_hp'] = $loser_info['max_hp'] - $loser_hp_change;
+        }
+        if ($loser_change['max_hp'] < $hp_min) {
+            $loser_change['max_hp'] = $hp_min;
+            $loser_hp_change = $loser_info['max_hp'] - $hp_min;
         }
         if ($winner_info['max_mp'] >= $loser_info['max_mp']) {
             $winner_mp_change = mt_rand(3, 6);
             $loser_mp_change = mt_rand(1, 2);
             $winner_change['max_mp'] = $winner_info['max_mp'] + $winner_mp_change;
-            $loser_change['max_mp'] = $loser_info['max_mp'] + $loser_mp_change;
+            $loser_change['max_mp'] = $loser_info['max_mp'] - $loser_mp_change;
         } else {
             $winner_mp_change = mt_rand(5, 10);
             $loser_mp_change = mt_rand(3, 6);
             $winner_change['max_mp'] = $winner_info['max_mp'] + $winner_mp_change;
-            $loser_change['max_mp'] = $loser_info['max_mp'] + $loser_mp_change;
+            $loser_change['max_mp'] = $loser_info['max_mp'] - $loser_mp_change;
+        }
+        if ($loser_change['max_mp'] < $mp_min) {
+            $loser_change['max_mp'] = $mp_min;
+            $loser_mp_change = $loser_info['max_mp'] - $mp_min;
         }
         $this->redis->hMset($key_winner, $winner_change);
         $this->redis->hMset($key_loser, $loser_change);
