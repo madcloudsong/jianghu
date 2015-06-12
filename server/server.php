@@ -1043,17 +1043,17 @@ class GameServer {
         );
         if ($winner_info['max_hp'] >= $loser_info['max_hp']) {
             $winner_change['max_hp'] = $winner_info['max_hp'] + mt_rand(3, 6);
-            $loser_info['max_hp'] = $loser_info['max_hp'] + mt_rand(1, 2);
+            $loser_change['max_hp'] = $loser_info['max_hp'] + mt_rand(1, 2);
         } else {
             $winner_change['max_hp'] = $winner_info['max_hp'] + mt_rand(5, 10);
-            $loser_info['max_hp'] = $loser_info['max_hp'] + mt_rand(3, 6);
+            $loser_change['max_hp'] = $loser_info['max_hp'] + mt_rand(3, 6);
         }
         if ($winner_info['max_mp'] >= $loser_info['max_mp']) {
             $winner_change['max_mp'] = $winner_info['max_mp'] + mt_rand(3, 6);
-            $loser_info['max_mp'] = $loser_info['max_mp'] + mt_rand(1, 2);
+            $loser_change['max_mp'] = $loser_info['max_mp'] + mt_rand(1, 2);
         } else {
             $winner_change['max_mp'] = $winner_info['max_mp'] + mt_rand(5, 10);
-            $loser_info['max_mp'] = $loser_info['max_mp'] + mt_rand(3, 6);
+            $loser_change['max_mp'] = $loser_info['max_mp'] + mt_rand(3, 6);
         }
         $this->redis->hMset($key_winner, $winner_change);
         $this->redis->hMset($key_loser, $loser_change);
@@ -1112,8 +1112,6 @@ class GameServer {
                     $this->clear_user_war_state($did);
                     $this->clear_room($roomid);
                     $this->log("WAR_TIME_LIMIT timeout roomid: $roomid, aid: $aid, did: $did");
-                    $toamsg = '';
-                    $todmsg = '';
                     $this->notice_war_end($aid, $did, $toamsg);
                     $this->notice_war_end($did, $aid, $todmsg);
                     $this->log("notice_war_end roomid: $roomid, aid: $aid, did: $did, toamsg: $toamsg");
