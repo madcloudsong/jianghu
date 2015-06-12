@@ -563,7 +563,7 @@ class GameServer {
         $cd = $this->cd_map[$cmd];
         $current_time = microtime(true);
         if ($skill_time + $cd - self::CD_BIAS > $current_time) {
-            $this->notice_skill_cd($userid, $cmd, $skill_time + $cd - $current_time);
+            $this->notice_skill_cd($userid, $cmd, $skill_time + $cd - $current_time, true);
             $this->log("battle error cd userid: $userid, aid: $aid, did: $did, cmd: $cmd, skilltime: $skill_time, cd: $cd, ctime: $current_time");
             return;
         }
@@ -652,7 +652,7 @@ class GameServer {
         }
     }
 
-    public function notice_skill_cd($userid, $cmd, $cd) {
+    public function notice_skill_cd($userid, $cmd, $cd, $sendmsg = false) {
         $data = array(
             'cmd' => self::cmd_war_cd,
             'r' => 0,
@@ -672,7 +672,9 @@ class GameServer {
             } else {
                 
             }
-            $this->send_system_msg($fd, 'skill_name is in cd, still ' . $cd . 's');
+            if ($sendmsg) {
+                $this->send_system_msg($fd, 'skill_name is in cd, still ' . $cd . 's');
+            }
         } else {
             $this->log("notice_skill_cd fd not exist userid: $userid");
         }
@@ -1109,17 +1111,17 @@ class GameServer {
         );
         if ($winner_info['max_hp'] >= $loser_info['max_hp']) {
             $winner_change['max_hp'] = $winner_info['max_hp'] + mt_rand(3, 6);
-            $loser_change['max_hp'] = $loser_info['max_hp'] + mt_rand(1, 2);
+            $loser_change['max_hp'] = $loser_info['max_hp'] - mt_rand(1, 2);
         } else {
             $winner_change['max_hp'] = $winner_info['max_hp'] + mt_rand(5, 10);
-            $loser_change['max_hp'] = $loser_info['max_hp'] + mt_rand(3, 6);
+            $loser_change['max_hp'] = $loser_info['max_hp'] - mt_rand(3, 6);
         }
         if ($winner_info['max_mp'] >= $loser_info['max_mp']) {
             $winner_change['max_mp'] = $winner_info['max_mp'] + mt_rand(3, 6);
-            $loser_change['max_mp'] = $loser_info['max_mp'] + mt_rand(1, 2);
+            $loser_change['max_mp'] = $loser_info['max_mp'] - mt_rand(1, 2);
         } else {
             $winner_change['max_mp'] = $winner_info['max_mp'] + mt_rand(5, 10);
-            $loser_change['max_mp'] = $loser_info['max_mp'] + mt_rand(3, 6);
+            $loser_change['max_mp'] = $loser_info['max_mp'] - mt_rand(3, 6);
         }
         $this->redis->hMset($key_winner, $winner_change);
         $this->redis->hMset($key_loser, $loser_change);
