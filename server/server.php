@@ -32,7 +32,6 @@ class GameServer {
     const cmd_system_msg = 21;
     const cmd_war_end = 22;
     const cmd_war_cd = 23;
-    
     const cmd_login = 100;
     const cmd_register = 101;
     const cmd_error = 999;
@@ -353,8 +352,8 @@ class GameServer {
     }
 
     public function init_attr() {
-        $max_hp = rand(8, 11);
-        $max_mp = rand(8, 11);
+        $max_hp = rand(90, 110);
+        $max_mp = 200 - $max_hp;
         $win = 0;
         $lose = 0;
         return array(
@@ -452,13 +451,13 @@ class GameServer {
     const WAR_STATE_END = 3;
     const TIMEOUT = 10;
     const WAR_TIME_LIMIT = 60;
-    
+    const FAILER_A = 1;
+    const FAILER_D = 2;
     const CD_ATTACK = 1;
     const CD_DEFENCE = 2;
     const CD_REST = 3;
-    
     const CD_BIAS = 0.2;
-    
+
     protected $cd_map = array(
         self::cmd_attack => self::CD_ATTACK,
         self::cmd_defence => self::CD_DEFENCE,
@@ -554,32 +553,32 @@ class GameServer {
             $enemyid = $did;
         } else if ($did == $userid) {
             $enemyid = $aid;
-        }else{
+        } else {
             $this->log("battle error no room id userid: $userid, aid: $aid, did: $did");
-            return ;
+            return;
         }
-        
+
         $key_timeout = Key::key_timeout($userid, $cmd);
-        $skill_time = isset($roominfo[$key_timeout]) ?$roominfo[$key_timeout] : 0 ;
+        $skill_time = isset($roominfo[$key_timeout]) ? $roominfo[$key_timeout] : 0;
         $cd = $this->cd_map[$cmd];
         $current_time = microtime(true);
-        if($skill_time + $cd - self::CD_BIAS > $current_time) {
+        if ($skill_time + $cd - self::CD_BIAS > $current_time) {
             $this->log("battle error cd userid: $userid, aid: $aid, did: $did, cmd: $cmd, skilltime: $skill_time, cd: $cd, ctime: $current_time");
             return;
         }
         //battle logic maybe need lock
         $self_info = $this->get_user_war_info($userid);
         $enemy_info = $this->get_user_war_info($enemyid);
-        if($cmd == self::cmd_attack) {
+        if ($cmd == self::cmd_attack) {
             $this->notice_battle_msg($userid, $self_info['name'], 'attack', $self_info, $enemy_info);
             $this->notice_battle_msg($enemyid, $self_info['name'], 'attack', $enemy_info, $self_info);
-        }else if($cmd == self::cmd_defence) {
+        } else if ($cmd == self::cmd_defence) {
             $this->notice_battle_msg($userid, $self_info['name'], 'cmd_defence', $self_info, $enemy_info);
             $this->notice_battle_msg($enemyid, $self_info['name'], 'cmd_defence', $enemy_info, $self_info);
-        }else if($cmd == self::cmd_rest) {
+        } else if ($cmd == self::cmd_rest) {
             $this->notice_battle_msg($userid, $self_info['name'], 'cmd_rest', $self_info, $enemy_info);
             $this->notice_battle_msg($enemyid, $self_info['name'], 'cmd_rest', $enemy_info, $self_info);
-        }else{
+        } else {
             $this->log("battle error no cmd: $cmd, userid: $userid, aid: $aid, did: $did");
         }
         //update skill cd
@@ -587,7 +586,7 @@ class GameServer {
         $key_room = Key::key_room($roomid);
         $this->redis->hSet($key_room, $key_timeout, $current_time);
     }
-    
+
     public function notice_battle_msg($userid, $fromname, $msg, $selfinfo, $enemyinfo) {
         $fd = $this->get_fd_by_id($userid);
         if ($fd !== false) {
@@ -596,7 +595,7 @@ class GameServer {
             $this->log("notice_battle_msg fd not exist userid: $userid");
         }
     }
-    
+
     public function notice_skill_cd($userid, $cmd, $cd) {
         $data = array(
             'cmd' => self::cmd_war_cd,
@@ -612,7 +611,6 @@ class GameServer {
             $this->log("notice_skill_cd fd not exist userid: $userid");
         }
     }
-    
 
     protected function get_enemy_id($userid) {
         $roomid = $this->get_roomid($userid);
@@ -1003,6 +1001,61 @@ class GameServer {
         $this->redis->delete($key_room);
     }
 
+    protected function check_failer($ainfo, $dinfo) {
+        $failer = self::FAILER_A;
+        if ($ainfo['hp'] > $dinfo['hp']) {
+            $failer = self::FAILER_D;
+        } else if ($ainfo['hp'] < $dinfo['hp']) {
+            $failer = self::FAILER_A;
+        } else if ($ainfo['mp'] > $dinfo['mp']) {
+            $failer = self::FAILER_D;
+        } else if ($ainfo['mp'] < $dinfo['mp']) {
+            $failer = self::FAILER_A;
+        } else if ($ainfo['max_hp'] > $dinfo['max_hp']) {
+            $failer = self::FAILER_A;
+        } else if ($ainfo['max_hp'] < $dinfo['max_hp']) {
+            $failer = self::FAILER_D;
+        } else if ($ainfo['max_mp'] > $dinfo['max_mp']) {
+            $failer = self::FAILER_A;
+        } else if ($ainfo['max_mp'] < $dinfo['max_mp']) {
+            $failer = self::FAILER_D;
+        } else {
+            $failer = self::FAILER_A;
+        }
+        return $failer;
+    }
+
+    protected function reset_user_info($userid) {
+        $info = $this->get_user_war_info($userid);
+        $key = Key::key_user($userid);
+        $this->redis->hMset($key, array('hp' => $info['max_hp'], 'mp' => $info['max_mp']));
+        $this->log("reset_user_info | userid: $userid");
+    }
+
+    protected function pvp_reward($winnerid, $winner_info, $loserid, $loser_info) {
+        $key_winner = key::key_user($winnerid);
+        $key_loser = Key::key_user($loserid);
+        $winner_change = array();
+        $loser_change = array();
+        if ($winner_info['max_hp'] >= $loser_info['max_hp']) {
+            $winner_change['max_hp'] += mt_rand(3, 6);
+            $loser_info['max_hp'] -= mt_rand(1, 2);
+        } else {
+            $winner_change['max_hp'] += mt_rand(5, 10);
+            $loser_info['max_hp'] -= mt_rand(3, 6);
+        }
+        if ($winner_info['max_mp'] >= $loser_info['max_mp']) {
+            $winner_change['max_mp'] += mt_rand(3, 6);
+            $loser_info['max_mp'] -= mt_rand(1, 2);
+        } else {
+            $winner_change['max_mp'] += mt_rand(5, 10);
+            $loser_info['max_mp'] -= mt_rand(3, 6);
+        }
+        $this->redis->hMset($key_winner, $winner_change);
+        $this->redis->hMset($key_loser, $loser_change);
+        $this->log("pvp_reward | winnerid: $winnerid, loserid: $loserid");
+    }
+
     /**
      * ai
      */
@@ -1033,7 +1086,24 @@ class GameServer {
                 }
             } else if ($state == self::WAR_STATE_RUN) {
                 if ($time + self::WAR_TIME_LIMIT < $current_time) {//war timeout
-                    //todo check winner
+                    //check winner
+                    $ainfo = $this->get_user_war_info($aid);
+                    $dinfo = $this->get_user_war_info($did);
+                    $failer = $this->check_failer($ainfo, $dinfo);
+                    if ($failer == self::FAILER_A) {
+                        $msg = 'war timeout, ' . $dinfo['name'] . ' win the war';
+                        $toamsg = $msg . ', you lose';
+                        $todmsg = $msg . ', you win';
+                        $this->pvp_reward($did, $dinfo, $aid, $ainfo);
+                    } else {
+                        $msg = 'war timeout, ' . $ainfo['name'] . ' win the war';
+                        $todmsg = $msg . ', you lose';
+                        $toamsg = $msg . ', you win';
+                        $this->pvp_reward($aid, $ainfo, $did, $dinfo);
+                    }
+
+                    $this->reset_user_info($aid);
+                    $this->reset_user_info($did);
                     $this->clear_user_war_state($aid);
                     $this->clear_user_war_state($did);
                     $this->clear_room($roomid);
@@ -1047,12 +1117,12 @@ class GameServer {
                     $npcid = $room_info['npcid'];
                     $npc_info = array(
                         'name' => 'npc',
-                        'max_hp' => 11,
-                        'hp' => 11,
-                        'max_mp' => 11,
-                        'mp' => 11,
-                        'win' => 11,
-                        'lose' => 11,
+                        'max_hp' => 110,
+                        'hp' => 110,
+                        'max_mp' => 110,
+                        'mp' => 110,
+                        'win' => 110,
+                        'lose' => 110,
                     );
                     //ai
                 } else { // pvp

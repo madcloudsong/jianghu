@@ -688,13 +688,12 @@ and open the template in the editor.
             });
 
             $(".btn-login").click(function () {
-                if (loading) {
-                    alert('loading');
-                    return;
-                }
                 if(!wsok) {
                     alert('server cannot connect');
                     location.reload();
+                }
+                if (loading) {
+                    return;
                 }
                 var userid = $.trim($("#userid").val());
                 var password = $.trim($("#password").val());
