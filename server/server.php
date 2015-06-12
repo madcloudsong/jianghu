@@ -1042,18 +1042,18 @@ class GameServer {
             'lose' => $loser_info['lose'] + 1,
         );
         if ($winner_info['max_hp'] >= $loser_info['max_hp']) {
-            $winner_change['max_hp'] += mt_rand(3, 6);
-            $loser_info['max_hp'] -= mt_rand(1, 2);
+            $winner_change['max_hp'] = $winner_info['max_hp'] + mt_rand(3, 6);
+            $loser_info['max_hp'] = $loser_info['max_hp'] + mt_rand(1, 2);
         } else {
-            $winner_change['max_hp'] += mt_rand(5, 10);
-            $loser_info['max_hp'] -= mt_rand(3, 6);
+            $winner_change['max_hp'] = $winner_info['max_hp'] + mt_rand(5, 10);
+            $loser_info['max_hp'] = $loser_info['max_hp'] + mt_rand(3, 6);
         }
         if ($winner_info['max_mp'] >= $loser_info['max_mp']) {
-            $winner_change['max_mp'] += mt_rand(3, 6);
-            $loser_info['max_mp'] -= mt_rand(1, 2);
+            $winner_change['max_mp'] = $winner_info['max_mp'] + mt_rand(3, 6);
+            $loser_info['max_mp'] = $loser_info['max_mp'] + mt_rand(1, 2);
         } else {
-            $winner_change['max_mp'] += mt_rand(5, 10);
-            $loser_info['max_mp'] -= mt_rand(3, 6);
+            $winner_change['max_mp'] = $winner_info['max_mp'] + mt_rand(5, 10);
+            $loser_info['max_mp'] = $loser_info['max_mp'] + mt_rand(3, 6);
         }
         $this->redis->hMset($key_winner, $winner_change);
         $this->redis->hMset($key_loser, $loser_change);
