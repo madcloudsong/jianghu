@@ -1035,8 +1035,12 @@ class GameServer {
     protected function pvp_reward($winnerid, $winner_info, $loserid, $loser_info) {
         $key_winner = key::key_user($winnerid);
         $key_loser = Key::key_user($loserid);
-        $winner_change = array();
-        $loser_change = array();
+        $winner_change = array(
+            'win' => $winner_info['win'] + 1,
+        );
+        $loser_change = array(
+            'lose' => $loser_info['lose'] + 1,
+        );
         if ($winner_info['max_hp'] >= $loser_info['max_hp']) {
             $winner_change['max_hp'] += mt_rand(3, 6);
             $loser_info['max_hp'] -= mt_rand(1, 2);

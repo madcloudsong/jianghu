@@ -312,9 +312,13 @@ and open the template in the editor.
                         break;
                     case cmd_system_msg:
                         cb_system_msg(data);
+                        set_self_info(data.self);
+                        set_enemy_info(data.enemy);
                         break;
                     case cmd_war_end:
                         cb_war_end(data);
+                        set_self_info(data.self);
+                        set_enemy_info(data.enemy);
                         break;
                     case cmd_pvp_cd:
                         cb_pvp_cd(data);
