@@ -621,7 +621,7 @@ class GameServer {
                 $this->notice_battle_msg($userid, $self_info['name'], "attack but {$enemy_info['name']} defence, {$enemy_info['name']} hp+ $recover_hp, mp+ $recover_mp", $self_info, $enemy_info);
                 $this->notice_battle_msg($enemyid, $self_info['name'], "attack but {$enemy_info['name']} defence, {$enemy_info['name']} hp+ $recover_hp, mp+ $recover_mp", $enemy_info, $self_info);
             } else {
-                $damage = ceil($self_info['mp_max'] * $self_info['mp_max'] / $enemy_info['hp_max'] / 5);
+                $damage = ceil($self_info['max_mp'] * $self_info['max_mp'] / $enemy_info['max_hp'] / 5);
                 $enemy_info['hp'] -= $damage;
                 if ($enemy_info['hp'] <= 0) {//war end
                     $enemy_info['hp'] = 1;
