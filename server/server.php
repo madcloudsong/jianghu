@@ -588,6 +588,7 @@ class GameServer {
                 $buff_map[$i_cmd] = false;
             }
         }
+        $this->log("buff map: $cmd, userid: $userid, aid: $aid, did: $did" .var_export($roominfo, true) .  var_export($buff_map, true));
 
         //todo battle logic maybe need lock
         $self_info = $this->get_user_war_info($userid);
