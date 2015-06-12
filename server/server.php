@@ -607,12 +607,12 @@ class GameServer {
         $buff = 0;
         if ($cmd == self::cmd_attack) {
             $cost = 20;
-            $self_info['mp'] -= $cost;
-            $self_change['mp'] = $self_info['mp'];
             if ($self_info['mp'] < $cost) {
                 $this->log("cmd_attack cost not enough: $cmd, userid: $userid, aid: $aid, did: $did");
                 return;
             }
+            $self_info['mp'] -= $cost;
+            $self_change['mp'] = $self_info['mp'];
             if ($enemy_buff_map[self::cmd_defence]) {// enemy in defence
                 $recover_hp_min = 20;
                 $recover_mp_min = 20;
