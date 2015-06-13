@@ -17,8 +17,8 @@ class Config {
     const COST_ATTACK = 20;
     const COST_DEFENCE = 30;
     
-    const RATE_BAOJI = 15;
-    const RATE_SHANBI = 15;
+    const RATE_BAOJI = 10;
+    const RATE_SHANBI = 10;
     
     const TIMEOUT = 10;
     const WAR_TIME_LIMIT = 60;
