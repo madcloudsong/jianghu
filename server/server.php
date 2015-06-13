@@ -660,8 +660,8 @@ class GameServer {
                         return;
                     }
                     $enemy_change['hp'] = $enemy_info['hp'];
-                    $this->notice_battle_msg($userid, $self_info['name'], "attack damage $damage", $self_info, $enemy_info);
-                    $this->notice_battle_msg($enemyid, $self_info['name'], "attack damage $damage", $enemy_info, $self_info);
+                    $this->notice_battle_msg($userid, $self_info['name'], ($baoji?'baoji ':'')."attack damage $damage", $self_info, $enemy_info);
+                    $this->notice_battle_msg($enemyid, $self_info['name'], ($baoji?'baoji ':'')."attack damage $damage", $enemy_info, $self_info);
                 }
             }
             $this->update_user($enemyid, $enemy_change);
