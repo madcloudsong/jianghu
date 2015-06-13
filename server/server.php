@@ -6,7 +6,7 @@
  * and open the template in the editor.
  */
 require __DIR__ . '/lib/Key.php';
-require __DIR__ . '/lib/Config.php';
+require __DIR__ . '/config/Config.php';
 require __DIR__ . '/lib/Utils.php';
 
 class GameServer {
