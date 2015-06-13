@@ -6,6 +6,8 @@
  * and open the template in the editor.
  */
 require __DIR__ . '/lib/Key.php';
+require __DIR__ . '/lib/Config.php';
+require __DIR__ . '/lib/Utils.php';
 
 class GameServer {
 
@@ -35,12 +37,12 @@ class GameServer {
     const cmd_login = 100;
     const cmd_register = 101;
     const cmd_error = 999;
-    const AI_INTERVAL = 3000;
+    
 
     public $ws;
     public $redis;
 
-    const NAME_GAME = 'JIANGHU';
+    
 
     public function __construct() {
         $this->ws = new swoole_websocket_server("0.0.0.0", 9502);
@@ -68,7 +70,7 @@ class GameServer {
 
     public function onWorkerStart($serv, $worker_id) {
         if ($worker_id == 0) {
-            $serv->tick(self::AI_INTERVAL, array($this, 'onTimer'));
+            $serv->tick(Config::AI_INTERVAL, array($this, 'onTimer'));
             $key = Key::key_fd_id();
             $this->redis->delete($key);
         }
@@ -153,7 +155,7 @@ class GameServer {
             'r' => 0,
             'msg' => '',
             'cmd' => self::cmd_system,
-            'name' => self::NAME_GAME,
+            'name' => Config::NAME_GAME,
             'chat' => $msg,
             'time' => date('H:i:s'),
         );
@@ -344,7 +346,7 @@ class GameServer {
 
     protected function send_welcome($fd, $name) {
         $msg = $this->add_span("Welcome $name", 'green');
-        $this->send_msg($fd, $this->add_span(self::NAME_GAME, 'orange'), $msg);
+        $this->send_msg($fd, $this->add_span(Config::NAME_GAME, 'orange'), $msg);
     }
 
     protected function add_span($msg, $color = 'black') {
@@ -352,7 +354,7 @@ class GameServer {
     }
 
     public function init_attr() {
-        $max_hp = rand(90, 110);
+        $max_hp = rand(Config::INIT_ATTR_MIN_HP, Config::INIT_ATTR_MAX_HP);
         $max_mp = 200 - $max_hp;
         $win = 0;
         $lose = 0;
@@ -441,7 +443,7 @@ class GameServer {
         $result = array(
             'r' => 0,
             'cmd' => self::cmd_system_msg,
-            'name' => self::NAME_GAME,
+            'name' => Config::NAME_GAME,
             'msg' => $msg,
             'time' => date('H:i:s'),
         );
@@ -458,19 +460,15 @@ class GameServer {
     const WAR_STATE_READY = 1;
     const WAR_STATE_RUN = 2;
     const WAR_STATE_END = 3;
-    const TIMEOUT = 10;
-    const WAR_TIME_LIMIT = 60;
+    
     const FAILER_A = 1;
     const FAILER_D = 2;
-    const CD_ATTACK = 1;
-    const CD_DEFENCE = 2;
-    const CD_REST = 3;
-    const CD_BIAS = 0.2;
+    
 
     protected $cd_map = array(
-        self::cmd_attack => self::CD_ATTACK,
-        self::cmd_defence => self::CD_DEFENCE,
-        self::cmd_rest => self::CD_REST,
+        self::cmd_attack => Config::CD_ATTACK,
+        self::cmd_defence => Config::CD_DEFENCE,
+        self::cmd_rest => Config::CD_REST,
     );
 
     public function cmd_pvp_list($fd, $data) {
@@ -571,12 +569,12 @@ class GameServer {
         $skill_time = isset($roominfo[$key_timeout]) ? $roominfo[$key_timeout] : 0;
         $cd = $this->cd_map[$cmd];
         $current_time = microtime(true);
-        if ($skill_time - self::CD_BIAS > $current_time) {
+        if ($skill_time - Config::CD_BIAS > $current_time) {
             $this->notice_skill_cd($userid, $cmd, $skill_time - $current_time, true);
             $this->log("battle error cd userid: $userid, aid: $aid, did: $did, cmd: $cmd, skilltime: $skill_time, cd: $cd, ctime: $current_time");
             return;
         }
-        
+
         $self_buff_map = array();
         $enemy_buff_map = array();
         foreach (array(self::cmd_attack, self::cmd_defence, self::cmd_rest) as $i_cmd) {
@@ -587,7 +585,7 @@ class GameServer {
             } else {
                 $self_buff_map[$i_cmd] = false;
             }
-            
+
             $enemy_key_buff = Key::key_buff($enemyid, $i_cmd);
             $buff_time = isset($roominfo[$enemy_key_buff]) ? $roominfo[$enemy_key_buff] : 0;
             if ($buff_time >= $current_time) {
@@ -596,8 +594,6 @@ class GameServer {
                 $enemy_buff_map[$i_cmd] = false;
             }
         }
-        
-        $this->log("buff map: $cmd, userid: $userid, aid: $aid, did: $did" .var_export($roominfo, true) .  var_export($buff_map, true));
 
         //todo battle logic maybe need lock
         $self_info = $this->get_user_war_info($userid);
@@ -606,7 +602,7 @@ class GameServer {
         $enemy_change = array();
         $buff = 0;
         if ($cmd == self::cmd_attack) {
-            $cost = 20;
+            $cost = Config::COST_ATTACK;
             if ($self_info['mp'] < $cost) {
                 $this->log("cmd_attack cost not enough: $cmd, userid: $userid, aid: $aid, did: $did");
                 return;
@@ -617,13 +613,15 @@ class GameServer {
                 $recover_hp_min = 20;
                 $recover_mp_min = 20;
                 $recover_hp = $enemy_info['max_hp'] / 5 > $recover_hp_min ? ceil($enemy_info['max_hp'] / 5) : $recover_hp_min;
+                $recover_hp = Utils::fload_around($recover_hp);
                 $recover_mp = $enemy_info['max_mp'] / 5 > $recover_mp_min ? ceil($enemy_info['max_mp'] / 5) : $recover_mp_min;
+                $recover_mp = Utils::fload_around($recover_mp);
                 $enemy_info['hp'] += $recover_hp;
                 if ($enemy_info['hp'] > $enemy_info['max_hp']) {
                     $enemy_info['hp'] = $enemy_info['max_hp'];
                 }
                 $enemy_change['hp'] = $enemy_info['hp'];
-                
+
                 $enemy_info['mp'] += $recover_mp;
                 if ($enemy_info['mp'] > $enemy_info['max_mp']) {
                     $enemy_info['mp'] = $enemy_info['max_mp'];
@@ -632,31 +630,44 @@ class GameServer {
                 $this->notice_battle_msg($userid, $self_info['name'], "attack but {$enemy_info['name']} defence, {$enemy_info['name']} hp+ $recover_hp, mp+ $recover_mp", $self_info, $enemy_info);
                 $this->notice_battle_msg($enemyid, $self_info['name'], "attack but {$enemy_info['name']} defence, {$enemy_info['name']} hp+ $recover_hp, mp+ $recover_mp", $enemy_info, $self_info);
             } else {
-                $damage = ceil($self_info['max_mp'] * $self_info['max_mp'] / $enemy_info['max_hp'] / 5);
-                $enemy_info['hp'] -= $damage;
-                if ($enemy_info['hp'] <= 0) {//war end
-                    $enemy_info['hp'] = 1;
-                    $this->pvp_reward($userid, $self_info, $enemyid, $enemy_info);
-                    $this->reset_user_info($aid);
-                    $this->reset_user_info($did);
-                    $this->clear_user_war_state($aid);
-                    $this->clear_user_war_state($did);
-                    $this->clear_room($roomid);
-                    $this->log("WAR_END after attack roomid: $roomid, aid: $aid, did: $did");
-                    $toamsg = "war end, you win";
-                    $todmsg = "war end, {$self_info['name']} win the war, you lose";
-                    $this->notice_war_end($userid, $enemyid, $toamsg);
-                    $this->notice_war_end($enemyid, $userid, $todmsg);
-                    return;
+                if (Utils::check_happen(Config::RATE_SHANBI)) {// shanbi 
+                    $enemy_change['hp'] = $enemy_info['hp'];
+                    $this->notice_battle_msg($userid, $self_info['name'], "attack miss damage 0", $self_info, $enemy_info);
+                    $this->notice_battle_msg($enemyid, $self_info['name'], "attack miss damage 0", $enemy_info, $self_info);
+                } else {
+                    $damage = ceil($self_info['max_mp'] / 7);
+                    $damage = Utils::fload_around($damage);
+                    $baoji = false;
+                    if (Utils::check_happen(Config::RATE_BAOJI)) {
+                        $damage = $damage * 2;
+                        $baoji = true;
+                    }
+
+                    $enemy_info['hp'] -= $damage;
+                    if ($enemy_info['hp'] <= 0) {//war end
+                        $enemy_info['hp'] = 1;
+                        $this->pvp_reward($userid, $self_info, $enemyid, $enemy_info);
+                        $this->reset_user_info($aid);
+                        $this->reset_user_info($did);
+                        $this->clear_user_war_state($aid);
+                        $this->clear_user_war_state($did);
+                        $this->clear_room($roomid);
+                        $this->log("WAR_END after attack roomid: $roomid, aid: $aid, did: $did");
+                        $toamsg = "war end, you win";
+                        $todmsg = "war end, {$self_info['name']} win the war, you lose";
+                        $this->notice_war_end($userid, $enemyid, $toamsg);
+                        $this->notice_war_end($enemyid, $userid, $todmsg);
+                        return;
+                    }
+                    $enemy_change['hp'] = $enemy_info['hp'];
+                    $this->notice_battle_msg($userid, $self_info['name'], "attack damage $damage", $self_info, $enemy_info);
+                    $this->notice_battle_msg($enemyid, $self_info['name'], "attack damage $damage", $enemy_info, $self_info);
                 }
-                $enemy_change['hp'] = $enemy_info['hp'];
-                $this->notice_battle_msg($userid, $self_info['name'], "attack damage $damage", $self_info, $enemy_info);
-                $this->notice_battle_msg($enemyid, $self_info['name'], "attack damage $damage", $enemy_info, $self_info);
             }
             $this->update_user($enemyid, $enemy_change);
             $this->update_user($userid, $self_change);
         } else if ($cmd == self::cmd_defence) {
-            $cost = 20;
+            $cost = Config::COST_DEFENCE;
             if ($self_info['mp'] < $cost) {
                 $this->log("cmd_defence cost not enough: $cmd, userid: $userid, aid: $aid, did: $did");
                 return;
@@ -672,13 +683,15 @@ class GameServer {
             $recover_hp_min = 40;
             $recover_mp_min = 40;
             $recover_hp = $self_info['max_hp'] / 4 > $recover_hp_min ? ceil($self_info['max_hp'] / 4) : $recover_hp_min;
+            $recover_hp = Utils::fload_around($recover_hp_min);
             $recover_mp = $self_info['max_mp'] / 3 > $recover_mp_min ? ceil($self_info['max_mp'] / 3) : $recover_mp_min;
+            $recover_mp = Utils::fload_around($recover_mp_min);
             $self_info['hp'] += $recover_hp;
             if ($self_info['hp'] > $self_info['max_hp']) {
                 $self_info['hp'] = $self_info['max_hp'];
             }
             $self_change['hp'] = $self_info['hp'];
-            
+
             $self_info['mp'] += $recover_mp;
             if ($self_info['mp'] > $self_info['max_mp']) {
                 $self_info['mp'] = $self_info['max_mp'];
@@ -698,6 +711,9 @@ class GameServer {
     }
 
     protected function update_user($userid, $userchange) {
+        if(empty($userchange)) {
+            return;
+        }
         $key = Key::key_user($userid);
         $this->redis->hMset($key, $userchange);
     }
@@ -1227,7 +1243,7 @@ class GameServer {
             $did = $room_info['did'];
             $time = $room_info['time'];
             if ($state == self::WAR_STATE_READY) {
-                if ($time + self::TIMEOUT < $current_time) {//ready timeout
+                if ($time + Config::TIMEOUT < $current_time) {//ready timeout
                     $this->ready_timeout($aid);
                     $this->ready_timeout($did);
 
@@ -1239,7 +1255,7 @@ class GameServer {
                     $this->notice_ready_timeout($aid, $did);
                 }
             } else if ($state == self::WAR_STATE_RUN) {
-                if ($time + self::WAR_TIME_LIMIT < $current_time) {//war timeout
+                if ($time + Config::WAR_TIME_LIMIT < $current_time) {//war timeout
                     //check winner
                     $ainfo = $this->get_user_war_info($aid);
                     $dinfo = $this->get_user_war_info($did);
