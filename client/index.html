@@ -87,6 +87,9 @@ and open the template in the editor.
             #login table tr{
                 height: 50px;
             }
+            #login table input{
+                font-size:  22px;
+            }
             .modal{
                 position: absolute;
                 top:0;left:0;
@@ -255,11 +258,7 @@ and open the template in the editor.
                 return s;
             }
 
-            var ws = null;
-            function connetWS() {
-                ws = new WebSocket("ws://itsong.net:9502");
-            }
-            connetWS();
+            var ws = new WebSocket("ws://itsong.net:9502");
             ws.onopen = function ()
             {
                 console.log("open");
@@ -698,7 +697,7 @@ and open the template in the editor.
             $(".btn-login").click(function () {
                 if(!wsok) {
                     alert('server cannot connect');
-                    connetWS();
+                    location.reload();
                 }
                 if (loading) {
                     return;
@@ -720,7 +719,7 @@ and open the template in the editor.
             $(".btn-register").click(function () {
                 if(!wsok) {
                     alert('server cannot connect');
-                    connetWS();
+                    location.reload();
                 }
                 if (loading) {
                     return;
