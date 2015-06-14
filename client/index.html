@@ -255,7 +255,11 @@ and open the template in the editor.
                 return s;
             }
 
-            var ws = new WebSocket("ws://itsong.net:9502");
+            var ws = null;
+            function connetWS() {
+                ws = new WebSocket("ws://itsong.net:9502");
+            }
+            connetWS();
             ws.onopen = function ()
             {
                 console.log("open");
@@ -694,7 +698,7 @@ and open the template in the editor.
             $(".btn-login").click(function () {
                 if(!wsok) {
                     alert('server cannot connect');
-                    location.reload();
+                    connetWS();
                 }
                 if (loading) {
                     return;
@@ -714,6 +718,10 @@ and open the template in the editor.
             });
 
             $(".btn-register").click(function () {
+                if(!wsok) {
+                    alert('server cannot connect');
+                    connetWS();
+                }
                 if (loading) {
                     return;
                 }
